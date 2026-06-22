@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>VesselHub</title>
+    <link href="img/favicon_utm.png" rel="icon">
+
+    <link href="css/maplibre-gl.css" rel="stylesheet" />
+    <script src="js/maplibre-gl.js"></script>
+    <script src="js/jquery.min.js"></script>
+    <link rel="stylesheet" href="css/all.min.css" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/vesselhub.css" />
+    <style>
+        input,
+        button,
+        textarea {
+            -webkit-appearance: none;
+            /* Elimina el estilo nativo de iOS */
+            -moz-appearance: none;
+            appearance: none;
+            border-radius: 0;
+            /* iOS suele forzar bordes redondeados */
+        }
+
+        input[type="checkbox"],
+        input[type="select"],
+        input[type="radio"] {
+            appearance: auto;
+            -webkit-appearance: auto;
+            width: auto;
+            height: auto;
+        }
+
+        .icono {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <a id="map-logo" href="https://www.utm.csic.es/" target="_blank" title="Visit UTM-CSIC">
+        <img src="img/logo.png" alt="UTM-CSIC Logo">
+    </a>
+    <!--popup primera visita-->
+    <!--<div id="tutorial-overlay">
+        <div id="tutorial-box">
+            <div class="tutorial-header">
+                <h2> Welcome to Fleet Tracker</h2>
+
+                <a href="https://www.utm.csic.es/" target="_blank" class="tutorial-header-logo">
+                    <img src="img/logo.png" alt="UTM CSIC">
+                </a>
+            </div>
+            <div class="tutorial-step">
+                <div class="tutorial-icon"><img src="img/layer-group.svg" class="icono"></div>
+                <div class="tutorial-content">
+                    <h4>Layer Control & Tracks</h4>
+                    <p>Click to switch maps and toggle vessels. Use the selector to change track (24h/3 days/6 days).
+                    </p>
+                </div>
+            </div>
+
+            <div class="tutorial-step">
+                <div class="tutorial-icon"><img src="img/ship.svg" class="icono"></div>
+                <div class="tutorial-content">
+                    <h4>Real-Time Data</h4>
+                    <p>Click to view real-time navigation, meteorological, and thermosalinity data for each vessel. You
+                        can also track a selected vessel.
+                    </p>
+
+                </div>
+            </div>
+
+            <div class="tutorial-step">
+                <div class="tutorial-icon"><img src="img/hand-pointer.svg" class="icono"></div>
+                <div class="tutorial-content">
+                    <h4>Interactive Map</h4>
+                    <p>Click any vessel icon to display its information.</p>
+                </div>
+            </div>
+
+            <button class="tutorial-btn" onclick="closeTutorial()">Get Started</button>
+        </div>
+    </div>-->
+    <div id="lateral">
+        <div id="cerrar" onclick="cerrarIframe()"></div>
+        <iframe id="iframe"></iframe>
+    </div>
+
+    <div id="map-container">
+        
+        <canvas id="starfield"></canvas>
+        
+        <div id="map">
+            <div class="basemap-ui">
+                <div id="btn-esri" class="thumb-card active"
+                    style="background-image: url('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/4/3/8');">
+                    <div class="thumb-label">Esri</div>
+                </div>
+                <div id="btn-osm" class="thumb-card"
+                    style="background-image: url('https://a.tile.openstreetmap.org/1/0/0.png');">
+                    <div class="thumb-label">OSM</div>
+                </div>
+            </div>
+            <div id="coordinates"></div>
+        </div>
+    </div>
+
+    <!-- BOTONS  DE LA DRETA-->
+    <button id="layers-btn" class="sidebar-btn" title="Toggle Layers"><img src="img/layer-group.svg"
+            class="icono"></button>
+
+    <button id="tool-btn" class="sidebar-btn" title="Vessels Real Time data"><img src="img/ship.svg"
+            class="icono"></button>
+
+    <button id="search-btn" class="sidebar-btn" title="Search"><img src="img/magnifying-glass-solid-full.svg"
+            class="icono"></button>
+
+    <button id="add-btn" class="sidebar-btn" title="Add"><img src="img/file-circle-plus-solid-full.svg"
+            class="icono"></button>
+
+    <button id="captura-btn" class="sidebar-btn" title="Download"><img src="img/download-solid-full.svg"
+            class="icono"></button>
+
+    <button id="grid-btn" class="sidebar-btn" title="Show grid"><img src="img/border-all-solid-full.svg"
+            class="icono"></button>
+    
+    <button id="globe-theme-toggle" class="sidebar-btn" title="Toggle Day/Night"><img src="img/day_night.png"
+            class="icono"></button>
+
+
+    <div class="controls" id="layers-panel">
+        <h3>Projection</h3>
+        <select id="projection" style="width: 100%; padding: 4px; margin-bottom: 10px;">
+            <option value="mercator">Mercator</option>
+            <option value="globe">Globe</option>
+        </select>
+        <hr style="border: 0; border-top: 1px solid #ddd; margin: 10px 0;">
+
+        <h3>UTM-CSIC LAYERS</h3>
+        
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 5px;">
+            <h4 style="margin: 0;">Vessel tracks (including transits):</h4>
+            <img id="toggle-tracks" style="cursor: pointer;" title="Show vessel tracks" src="img/eye-solid-full.svg"
+                class="icono">
+        </div>
+
+        <label>
+            <input type="checkbox" id="sdgtracks" checked>
+            <span class="legend-line"
+                style="background: repeating-linear-gradient(to right, #93B253 0px, #93B253 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            Sarmiento de Gamboa RV tracks
+        </label>
+
+        <label>
+            <input type="checkbox" id="odbtracks" checked>
+            <span class="legend-line"
+                style="background: repeating-linear-gradient(to right, #FFFFFF 0px, #FFFFFF 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            Odón de Buen RV tracks
+        </label>
+
+        <label>
+            <input type="checkbox" id="gdctracks" checked>
+            <span class="legend-line"
+                style="background: repeating-linear-gradient(to right, #74B9BC 0px, #74B9BC 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            García del Cid RV tracks
+        </label>
+
+        <label>
+            <input type="checkbox" id="hestracks" checked>
+            <span class="legend-line"
+                style="background: repeating-linear-gradient(to right, #FFC928 0px, #FFC928 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            Hespérides RV tracks
+        </label>
+        
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 5px;">
+            <h4 style="margin: 0;">Cruise tracks:</h4>
+            <img id="toggle-cruises" style="cursor: pointer;" title="Show cruises" src="img/eye-solid-full.svg"
+                class="icono">
+        </div>
+
+        <label>
+            <input type="checkbox" id="sdgcruises" checked>
+            <span class="legend-line"
+                style="background: #93B253; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            Sarmiento de Gamboa RV cruises
+        </label>
+
+        <label>
+            <input type="checkbox" id="odbcruises" checked>
+            <span class="legend-line"
+                style="background: #FFFFFF; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            Odón de Buen RV cruises
+        </label>
+
+        <label>
+            <input type="checkbox" id="gdccruises" checked>
+            <span class="legend-line"
+                style="background: #74B9BC; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            García del Cid RV cruises
+        </label>
+        <label>
+            <input type="checkbox" id="hescruises" checked>
+            <span class="legend-line"
+                style="background: #FFC928; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+            Hespérides RV cruises
+        </label>
+
+        
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 5px;">
+           <H4 style="margin: 0;">Stations:</H4>
+            <img id="toggle-stations" style="cursor: pointer;" title="Show Stations" src="img/eye-solid-full.svg"
+                class="icono">
+        </div>
+
+        <label>
+            <input type="checkbox" id="COR" checked>
+            <span class="legend-symbol"
+                style="background: #AF2D1B;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
+            Sediment corer
+        </label>
+        <label>
+            <input type="checkbox" id="CTD" checked>
+                <span class="legend-symbol"
+                    style="background: #BC8AE8;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
+            CTD
+        </label>
+        <label>
+            <input type="checkbox" id="WCP" checked>
+                    <span class="legend-symbol"
+                        style="background: #00aaff;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
+            Water column profiles
+        </label>
+        <label>
+            <input type="checkbox" id="DRE" checked>
+                        <span class="legend-symbol"
+                            style="background: #5d6366;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                        Dredge
+        </label>
+
+
+
+
+        <h3>EXTERNAL LAYERS:</h3>
+        <label><input type="checkbox" id="eez-wms"> EEZ (Marine Regions)</label>
+        <label><input type="checkbox" id="ihm-wms"> IHM Nautical charts</label>
+
+    </div>
+
+    <div id="tool-panel">
+        <div class="tabs-header">
+            <button class="tab-link active" onclick="openTab(event, 'vessel-tab')">Vessels</button>
+            <button class="tab-link" onclick="openTab(event, 'rt-tab')">Real Time</button>
+        </div>
+        <div id="vessel-tab" class="tab-content" style="display: block;">
+
+            <label><input type="checkbox" id="ODB-check" checked> <span class="legend-icon"
+                    style="background-color:#938460"></span> Odón de Buen</label>
+            <label><input type="checkbox" id="SDG-check" checked> <span class="legend-icon"
+                    style="background-color:#938460"></span> Sarmiento de Gamboa</label>
+            <label><input type="checkbox" id="HES-check" checked> <span class="legend-icon"
+                    style="background-color:#938460"></span> Hespérides</label>
+
+
+            <div style="margin-bottom: 10px;">
+
+                <select id="track-time-selector"
+                    style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+                    <option value="24">Last 24h</option>
+                    <option value="72">Last 3 days</option>
+                    <option value="144">Last 6 days</option>
+                </select>
+            </div>
+
+            <label><input type="checkbox" id="ODB-track-check" checked> <span class="legend-icon"
+                    style="background-color:#3388FF; width:14px; height:3px; clip-path:none;"></span> Track ODB</label>
+            <label><input type="checkbox" id="SDG-track-check" checked> <span class="legend-icon"
+                    style="background-color:#3388FF; width:14px; height:3px; clip-path:none;"></span> Track SDG</label>
+            <label><input type="checkbox" id="HES-track-check" checked> <span class="legend-icon"
+                    style="background-color:#3388FF; width:14px; height:3px; clip-path:none;"></span> Track HES</label>
+        </div>
+        <div id="rt-tab" class="tab-content" style="display: none;">
+            <div class="action-bar">
+                <button class="btn-action" title="Zoom to vessel" onclick="zoomToVessel()">
+                    <img src="img/magnifying-glass-location.svg" class="icono">
+                </button>
+                <input type="checkbox" id="followVessel" title="Follow vessel">
+                <select id="vessel-selector">
+                    <option value="ODB">Odón de Buen</option>
+                    <option value="SDG">Sarmiento de Gamboa</option>
+                    <option value="HES">Hespérides</option>
+                </select>
+            </div>
+            <table id="realtimedata">
+                <tr>
+                    <td>Last NAV:</td>
+                    <td class="right_td" id="last">--</td>
+                </tr>
+                <tr>
+                    <td>Latitude:</td>
+                    <td class="right_td" id="lat">--</td>
+                </tr>
+                <tr>
+                    <td>Longitude:</td>
+                    <td class="right_td" id="lon">--</td>
+                </tr>
+                <tr>
+                    <td>Depth:</td>
+                    <td class="right_td"><span id="depth">--</span> m</td>
+                </tr>
+                <tr>
+                    <td>Speed:</td>
+                    <td class="right_td"><span id="sog">--</span> Kn</td>
+                </tr>
+
+                <tr class="met section-header">
+                    <td colspan="2">METEO</td>
+                </tr>
+                <tr class="met">
+                    <td>Last MET:</td>
+                    <td class="right_td" id="lastMET">--</td>
+                </tr>
+                <tr class="met">
+                    <td>Wind Speed:</td>
+                    <td class="right_td"><span id="wind_speed">--</span> m/s</td>
+                </tr>
+                <tr class="met">
+                    <td>Air Temp.:</td>
+                    <td class="right_td"><span id="air_temp">--</span> ºC</td>
+                </tr>
+                <tr class="met">
+                    <td>Pressure:</td>
+                    <td class="right_td"><span id="pressure">--</span> hPA</td>
+                </tr>
+
+                <tr class="tss section-header">
+                    <td colspan="2">TSS</td>
+                </tr>
+                <tr class="tss">
+                    <td>Last TSS:</td>
+                    <td class="right_td" id="lastTSS">--</td>
+                </tr>
+                <tr class="tss">
+                    <td>Salinity:</td>
+                    <td class="right_td"><span id="salinity">--</span> psu</td>
+                </tr>
+                <tr class="tss">
+                    <td>Water Temp.:</td>
+                    <td class="right_td"><span id="water_temp">--</span> ºC</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div id="search-panel">
+        <div id="search-loader" class="panel-loader">
+            <div class="spinner"></div>
+            <div class="loader-text">Loading...</div>
+        </div>
+        <h3>Search track</h3>
+        <div id="form-container">
+            <form>
+                <label for="sdg_hes_gdc">Select the vessel:</label>
+                <select id="sdg_hes_gdc" name="sdg_hes_gdc">
+                    <option value="SDG">Sarmiento de Gamboa</option>
+                    <option value="HES">Hespérides</option>
+                    <option value="GDC">Garcia del Cid</option>
+                    <option value="ODB">Odón de Buen</option>
+                </select>
+
+                <label for="fecha_inicio">Start date:</label>
+                <input type="date" id="fecha_inicio" name="fecha_inicio">
+
+                <label for="fecha_fin">End date:</label>
+                <input type="date" id="fecha_fin" name="fecha_fin">
+
+                <p style="margin: 0;">
+                    <label for="interval">Time interval (seconds):</label>
+                    <input type="number" id="interval" value="120" min="1">
+                </p>
+                <button id="searchTrack" type="submit">Show track</button>
+            </form>
+            <button id="clearTrack">Clear Track</button>
+            <button id="download" type="button">Download data</button>
+        </div>
+    </div>
+
+    <div id="add-panel">
+        <div id="sidebar">
+            <div class="section">
+                <h3>Add layers</h3>
+                <select id="typeSelector">
+                    <option value="geojson-local">GeoJSON Local</option>
+                    <option value="wfs">Web Feature Service</option>
+                    <option value="wms">Web Map Service</option>
+                    <!--<option value="osm">OpenStreetMap</option>-->
+                </select>
+
+                <div id="urlCont">
+                    <input type="text" id="inpUrl" placeholder="Server URL...">
+                    <button id="btnExplore">Explore</button>
+                    <select id="selLayers"></select>
+                    <input type="text" id="inpLayerName"
+                        style="width:100%;margin-top:4px;box-sizing:border-box;display:none">
+                </div>
+
+                <div id="fileCont">
+                    <input type="file" id="inpFile" accept=".geojson,.json">
+                </div>
+
+                <button id="btnAdd">ADD TO MAP</button>
+            </div>
+            <h3>Layers</h3>
+            <div id="layerControl"></div>
+        </div>
+
+
+    </div>
+
+    <div id="malla-panel">
+    </div>
+
+    </div>
+
+
+    <div id="cruise-data-panel" class="cruise-data-panel">
+        <div class="cruise-data-header">
+            <span id="cruise-data-title">Cruise data</span>
+            <label>
+                <input type="checkbox" id="cruise-data-sync"> Synchronize with the map
+            </label>
+            <select id="cruise-data-type">
+                <option value="met" selected>Meteorology (MET)</option>
+                <option value="ts">Thermosalinity (TS)</option>
+
+            </select>
+            <button id="cruise-data-close" type="button" title="Close">&times;</button>
+        </div>
+        <div id="cruise-data-url" class="cruise-data-url"></div>
+        <div class="cruise-data-body">
+            <div id="cruise-data-loading" class="cruise-data-loading hidden">Loading...</div>
+            <div id="cruise-data-error" class="cruise-data-error hidden"></div>
+            <div class="cruise-data-chart-wrap">
+                <canvas id="cruise-data-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+
+            const btnSearchTrack = document.getElementById('searchTrack');
+            const btnAdd = document.getElementById('btnAdd');
+
+
+            function apagarTodasLasCapas() {
+                const todosLosCheckboxes = document.querySelectorAll('#layers-panel input[type="checkbox"]');
+
+                todosLosCheckboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        checkbox.checked = false;
+                        checkbox.dispatchEvent(new Event('change'));
+                    }
+                });
+            }
+
+
+            if (btnSearchTrack) {
+                btnSearchTrack.addEventListener('click', apagarTodasLasCapas);
+            }
+
+
+            if (btnAdd) {
+                btnAdd.addEventListener('click', apagarTodasLasCapas);
+            }
+        });
+    </script>
+    <script>
+        function crearGrupoToggle(imagenId, arrayDeCheckboxesIds) {
+            const imgToggle = document.getElementById(imagenId);
+            if (!imgToggle) return;
+
+            let grupoVisible = true;
+
+            imgToggle.addEventListener('click', () => {
+                grupoVisible = !grupoVisible;
+                if (grupoVisible) {
+                    imgToggle.src = 'img/eye-solid-full.svg';
+                    imgToggle.style.opacity = '1';
+                } else {
+
+                    imgToggle.src = 'img/eye-slash-solid-full.svg';
+                    imgToggle.style.opacity = '0.5';
+                }
+
+                arrayDeCheckboxesIds.forEach(id => {
+                    const checkbox = document.getElementById(id);
+                    if (checkbox && checkbox.checked !== grupoVisible) {
+                        checkbox.checked = grupoVisible;
+                        checkbox.dispatchEvent(new Event('change'));
+                    }
+                });
+            });
+        }
+
+        crearGrupoToggle('toggle-stations', ['WCP', 'DRE', 'CTD', 'COR']);
+        crearGrupoToggle('toggle-cruises', ['sdgcruises', 'odbcruises', 'gdccruises', 'hescruises']);
+        crearGrupoToggle('toggle-tracks', ['sdgtracks', 'odbtracks', 'gdctracks', 'hestracks']);
+    </script>
+    <script src="js/grid.js"></script>
+    <script src="js/download.js"></script>
+    <script src="js/vesselhub.js"></script>
+    <script src="js/search.js"></script>
+    <script src="js/add.js"></script>
+    <script type="module" src="js/fleet.js"></script>
+</body>
+
+</html>

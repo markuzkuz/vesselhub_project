@@ -1,0 +1,945 @@
+body {
+    --cruise-panel-height: 280px;
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    overflow: hidden;
+}
+#map { position: relative; width: 100vw; height: 100vh; transition: height 0.3s ease; }
+body.cruise-panel-open #map { height: calc(100vh - var(--cruise-panel-height)); }
+
+/* Sidebar Buttons */
+.sidebar-btn {
+    position: absolute; right: 10px; width: 30px; height: 30px;
+    background: #fff; border: 1px solid #ccc; border-radius: 4px;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 5; font-size: 16px; color: #333;
+}
+.sidebar-btn:hover { background: #f2f2f2; }
+#layers-btn { top: 110px; }
+#tool-btn { top: 150px; }
+#search-btn { top: 190px; }
+#add-btn { top: 230px; }
+#captura-btn { top: 270px; }
+#grid-btn { top: 310px; }
+
+/* Panels */
+.controls, #tool-panel, #search-panel ,#add-panel,#captura-panel, #grid-panel {
+    position: absolute; right: 50px; background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    z-index: 4; font-size: 14px; min-width: 220px; max-height: 80vh;
+    overflow-y: auto; display: none;
+}
+.controls { top: 110px; }
+#tool-panel { top: 150px;  }
+#search-panel{ top: 190px;  }
+#add-panel{ top: 230px;  }
+#captura-panel{ top: 270px;  }
+#grid-panel{ top: 310px;  }
+.controls h3 { margin: 5px 0; font-size: 15px; }
+
+label { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; cursor: pointer; }
+.legend-icon {
+    width: 14px; height: 20px; display: inline-block; background: currentColor;
+    border-radius: 0 0 50% 50%;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 100%, 0% 100%, 0% 25%);
+}
+/* Tables */
+.popup-table, #realtimedata { 
+border-collapse: collapse; 
+width: 100%; 
+max-width: 220px; /* Limita l'amplada màxima perquè quedi petita */
+font-size: 14px; /* Lletra més petita */
+font-family: sans-serif;
+}
+
+#realtimedata td { 
+border-top: 1px solid #ddd; 
+padding: 3px 5px; /* Padding reduït per fer-ho compacte */
+}
+
+/* Primera columna (títols) */
+#realtimedata td:first-child { 
+font-weight: bold; 
+color: black; 
+text-align: left;
+white-space: nowrap;
+}
+
+/* Segona columna (valors i unitats) */
+#realtimedata .right_td { 
+text-align: right;  
+white-space: nowrap; 
+}
+
+/* Fila de separació per les categories (METEO, TSS) */
+#realtimedata .section-header td {
+background: #f9f9f9; 
+text-align: center; 
+font-weight: bold;
+border-top: 1px solid #ddd;
+}
+
+/* Estils extres que ja tenies pel popup */
+.maplibregl-popup-content { background: transparent !important; box-shadow: none !important; padding: 0 !important; }
+.maplibregl-popup-tip { border-top-color: rgba(255, 255, 255, 0.8) !important; }
+/* Action Bar */
+.action-bar { 
+display: flex; 
+align-items: center; 
+gap: 12px; /* Separació entre la columna de botons i el desplegable */
+margin-bottom: 12px; 
+background: #f8f9fa; 
+padding: 4px 4px 4px 4px; 
+border-radius: 4px; 
+border: 1px solid #ddd; 
+}
+
+/* Nou contenidor per apilar el zoom i el follow */
+.controls-col {
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 4px; /* Separació vertical entre el botó i el text de Follow */
+}
+
+/* Estils de l'etiqueta Follow */
+.follow-label {
+font-size: 9px; 
+margin: 0;
+cursor: pointer;
+color: #444;
+}
+
+#vessel-selector { 
+
+padding: 4px; 
+border-radius: 4px; 
+border: 1px solid #ccc; 
+font-size: 13px;
+}
+
+.btn-action { 
+cursor: pointer; 
+border: 1px solid #ccc; 
+background: #fff; 
+padding: 3px 5px; 
+border-radius: 3px; 
+}
+
+.btn-action:hover { 
+background: #e9ecef; 
+}
+/* Iframe Lateral */
+#lateral { position: fixed; top: 0; left: -500px; width: 500px; height: 100%; background: #f1f1f1; transition: left 0.3s ease; z-index: 9998; }
+#iframe { width: 100%; height: 100%; border: none; }
+#cerrar { position: absolute; top: 10px; right: 10px; cursor: pointer; width: 20px; height: 20px; z-index: 10; }
+#cerrar::before, #cerrar::after { content: ''; position: absolute; top: 50%; left: 50%; width: 16px; height: 2px; background: #000; transform: translate(-50%, -50%) rotate(45deg); }
+#cerrar::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+/* --- TUTORIAL MODAL STYLES --- */
+#tutorial-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.6); z-index: 10000;
+    display: flex; justify-content: center; align-items: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+#tutorial-overlay.active { opacity: 1; pointer-events: all; }
+
+#tutorial-box {
+    background: white; width: 90%; max-width: 500px;
+    padding: 25px; border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    font-family: system-ui, sans-serif;
+    position: relative;
+}
+
+/* NOU: Capçalera del tutorial (Títol + Logo alineats) */
+.tutorial-header {
+    display: flex;
+    justify-content: space-between; /* Títol esquerra, Logo dreta */
+    align-items: center;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.tutorial-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 22px;
+}
+
+.tutorial-header-logo img {
+    height: 40px; /* Alçada del logo dins del tutorial */
+    display: block;
+}
+
+.tutorial-step {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+    text-align: left;
+}
+
+.tutorial-icon {
+    background: #eef4ff;
+    color: #3388FF;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.tutorial-content h4 {
+    margin: 0 0 5px;
+    font-size: 16px;
+    color: #444;
+}
+
+.tutorial-content p {
+    margin: 0;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.tutorial-btn {
+    background: #3388FF;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 15px;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.tutorial-btn:hover {
+    background: #256bcf;
+}
+
+/* --- LOGO FLOTANT MAPA --- */
+#map-logo {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 5px 10px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+/* --- LOGO FLOTANT MAPA --- */
+#map-logo:hover {
+    transform: scale(1.05);
+}
+
+#map-logo img {
+    height: 30px;
+    /* Alçada del logo sobre el mapa */
+    display: block;
+}
+#coordinates {position: absolute;
+    bottom: 20px;
+    left: 20px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.9);
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 4px;
+    z-index: 100;
+    pointer-events: none;
+    border: 1px solid #ccc;
+    color: #333;
+}
+/* Forzar que la atribución (la 'i') esté siempre cerrada */
+.maplibregl-ctrl-attrib:not(:hover) .maplibregl-ctrl-attrib-inner {
+display: none !important;
+}
+
+/* Asegurar que el botón de la "i" se vea siempre */
+.maplibregl-ctrl-attrib-button {
+display: block !important;
+}
+
+/* Quitar el fondo blanco estirado cuando está cerrada */
+.maplibregl-ctrl-attrib:not(:hover) {
+background: transparent !important;
+padding: 0 !important;
+}
+/* Contenedor de los botones de las pestañas */
+.tabs-header {
+    display: flex;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 15px;
+}
+
+/* Estilo de los botones de las pestañas */
+.tabs-header .tab-link {
+    background-color: inherit;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 10px 15px;
+    transition: 0.3s;
+    font-size: 14px;
+    font-weight: bold;
+    flex: 1; /* Para que ocupen el mismo ancho */
+    border-bottom: 3px solid transparent;
+}
+
+/* Efecto hover */
+.tabs-header .tab-link:hover {
+    background-color: #f1f1f1;
+}
+
+/* Pestaña activa */
+.tabs-header .tab-link.active {
+    border-bottom: 3px solid #3388FF; /* Color azul para indicar selección */
+    color: #3388FF;
+}
+
+/* Ocultar contenido por defecto (controlado por JS y HTML inline) */
+.tab-content {
+    display: none;
+}
+
+/* Animación opcional para transición suave */
+.tab-content {
+    animation: fadeEffect 0.4s;
+}
+@keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+/* --- ESTILOS MODERNOS PARA EL PANEL DE BÚSQUEDA --- */
+#search-panel h3 {
+    margin: 5px 0 15px 0;
+    font-size: 16px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 5px;
+    color: #333;
+}
+
+#search-panel label {
+    display: block;
+    font-weight: bold;
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #555;
+}
+
+/* Estilización uniforme de todos los campos de entrada */
+#search-panel select,
+#search-panel input[type="date"],
+#search-panel input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    box-sizing: border-box;
+    background-color: #fff;
+    color: #333;
+}
+
+#search-panel select:focus,
+#search-panel input:focus {
+    border-color: #3388FF;
+    outline: none;
+}
+
+/* Estilos de botones alineados con la app */
+#search-panel button {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.2s ease, transform 0.1s ease;
+    margin-top: 8px;
+    box-sizing: border-box;
+}
+
+#search-panel button:active {
+    transform: scale(0.98);
+}
+
+/* Botón Principal (Show Track) */
+#searchTrack {
+    background-color: #3388FF;
+    color: white;
+}
+
+#searchTrack:hover {
+    background-color: #256bcf;
+}
+
+/* Botón de Borrar (Clear Track) */
+#clearTrack {
+    background-color: #fff;
+    border: 1px solid #cc0000 !important;
+    color: #cc0000;
+}
+
+#clearTrack:hover {
+    background-color: #ffe6e6;
+}
+
+/* Botón de Descarga */
+#download {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd !important;
+    color: #444;
+}
+
+#download:hover {
+    background-color: #e9ecef;
+}
+
+/* --- CAPA DE CARGA (EFECTO PENSANDO) --- */
+.panel-loader {
+    display: none; /* Oculto por defecto */
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 8px;
+    z-index: 10;
+    text-align: center;
+    padding-top: 45%; /* Centrado vertical aproximado */
+    box-sizing: border-box;
+}
+
+/* Animación del Spinner */
+.spinner {
+    width: 35px;
+    height: 35px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3388FF; /* Color azul de la app */
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 1s linear infinite;
+}
+
+.loader-text {
+    font-size: 13px;
+    color: #3388FF;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.basemap-ui {
+    position: absolute;
+    bottom: 35px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.thumb-card {
+    width: 70px;
+    height: 70px;
+    border-radius: 8px;
+    border: 2px solid white;
+    cursor: pointer;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s, border-color 0.2s;
+    position: relative;
+}
+
+.thumb-card:hover {
+    transform: scale(1.05);
+}
+
+.thumb-card.active {
+    border-color: #007cff;
+    border-width: 3px;
+}
+
+.thumb-label {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 8px;
+    text-align: center;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    padding: 2px 0;
+    font-family: sans-serif;
+}
+.maplibregl-popup-content { font-family: system-ui, sans-serif; font-size: 13px; }
+.popup-table { border-collapse: collapse; width:100%; }
+.popup-table td { border-top: 1px solid #ddd; padding:3px 6px; vertical-align:top; }
+.popup-table td:first-child { font-weight:bold; color:#333; }
+/* 1. Cambiar el fondo del contenedor del popup */
+.maplibregl-popup-content {
+  background-color: #f5f6f8 !important; /* Blanco roto / Grisáceo claro */
+  color: #333333 !important;             /* Texto gris oscuro para que sea legible */
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 12px 14px !important;
+}
+
+/* 2. Cambiar el color de la flechita según el lado por el que se pegue al mapa */
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: #f5f6f8 !important; }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #f5f6f8 !important; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #f5f6f8 !important; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #f5f6f8 !important; }
+
+/* 3. Ajustes de tu tabla interna para que se adapte al nuevo fondo */
+.popup-table { 
+  border-collapse: collapse; 
+  width: 100%; 
+}
+.popup-table td { 
+  border-top: 1px solid #dcdfe4; /* Línea divisoria un poco más oscura */
+  padding: 4px 6px; 
+  vertical-align: top; 
+}
+.popup-table td:first-child { 
+  font-weight: bold; 
+  color: #4a5568; /* Un gris elegante para las claves */
+}
+
+.draggable-popup .maplibregl-popup-tip {
+  display: none;
+}
+
+.popup-drag-handle {
+  position: relative;
+  cursor: grab;
+  user-select: none;
+  margin: -12px -14px 8px -14px;
+  padding: 8px 28px 8px 14px;
+  background: #e8eaed;
+  border-bottom: 1px solid #dcdfe4;
+  border-radius: 8px 8px 0 0;
+}
+
+.popup-drag-handle::after {
+  content: "⋮⋮";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #9aa3af;
+  line-height: 1;
+}
+
+.popup-drag-handle.dragging,
+.popup-drag-handle:active {
+  cursor: grabbing;
+}
+
+.cruise-data-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--cruise-panel-height);
+  background: #f5f6f8;
+  border-top: 1px solid #dcdfe4;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.cruise-data-panel.open {
+  transform: translateY(0);
+}
+
+.cruise-chart-map-marker {
+  transform-origin: 50% 100%;
+}
+
+.cruise-chart-map-marker-pin {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  background: #e53935;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: translateX(-50%) rotate(-45deg);
+  box-sizing: border-box;
+}
+
+.cruise-chart-map-marker-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.cruise-data-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #e8eaed;
+  border-bottom: 1px solid #dcdfe4;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+#cruise-data-title {
+  flex: 1;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#cruise-data-type {
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+}
+
+#cruise-data-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #555;
+}
+
+#cruise-data-close:hover {
+  background: #f0f0f0;
+}
+
+.cruise-data-url {
+  padding: 2px 14px 4px;
+  font-size: 10px;
+  color: #718096;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.cruise-data-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cruise-data-chart-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 140px;
+  width: 100%;
+}
+
+#cruise-data-chart {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.cruise-data-loading,
+.cruise-data-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.cruise-data-error {
+  color: #c53030;
+  padding: 0 20px;
+  text-align: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.cruise-data-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid #3182ce;
+  border-radius: 4px;
+  background: #3182ce;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cruise-data-btn:hover {
+  background: #2b6cb0;
+}
+#layerControl{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.layer-card{
+  background:#fff;
+  border:1px solid #dfe6e9;
+  border-radius:10px;
+  overflow:hidden;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+  transition:.2s;
+}
+
+.layer-card:hover{
+  box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+
+.layer-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px;
+}
+
+.layer-left{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+
+.layer-title{
+  font-weight:600;
+  font-size:14px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.layer-actions{
+  display:flex;
+  gap:4px;
+}
+
+.icon-btn{
+  width:30px;
+  height:30px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  background:#f4f6f8;
+  transition:.15s;
+}
+
+.icon-btn:hover{
+  background:#dfe6e9;
+}
+
+.style-btn{
+  background:#eaf5ff;
+}
+
+.style-btn:hover{
+  background:#d0eaff;
+}
+
+.delete-btn{
+  background:#ffe8e8;
+  color:#c0392b;
+}
+
+.delete-btn:hover{
+  background:#ffd0d0;
+}
+
+.layer-check{
+  transform:scale(1.1);
+}
+
+.symbol-editor{
+  display:none;
+  border-top:1px solid #eee;
+  padding:12px;
+  background:#fafafa;
+}
+
+.editor-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.editor-row label{
+  font-size:13px;
+  color:#555;
+  min-width:80px;
+}
+
+.editor-row input[type="range"]{
+  flex:1;
+}
+
+.editor-row input[type="color"]{
+  width:45px;
+  height:32px;
+  border:none;
+  background:none;
+  cursor:pointer;
+}
+/* Contenedor principal */
+#add-panel {
+  padding: 12px;
+}
+
+/* Caja de la sección */
+#add-panel .section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;           /* Espacio entre elementos */
+}
+
+/* Títulos */
+#add-panel h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: #333;
+}
+
+/* Selects e inputs */
+#add-panel input[type="text"],
+#add-panel input[type="file"],
+#add-panel select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+/* Contenedores */
+#urlCont,
+#fileCont {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Botones con el mismo estilo que search-panel */
+#add-panel button {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.2s ease, transform 0.1s ease;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+
+/* Botón principal */
+#btnAdd {
+  background: #0078A8;
+  color: white;
+}
+
+#btnAdd:hover {
+  background: #00688f;
+}
+
+/* Botón explorar */
+#btnExplore {
+  background: #f8f9fa;
+  border: 1px solid #ddd !important;
+  color: #444;
+}
+
+#btnExplore:hover {
+  background: #e9ecef;
+}
+
+/* Espacio antes del listado de capas */
+#layerControl {
+  margin-top: 15px;
+}
+.popup-table tr:first-child td {
+  border-top: none !important;
+}
+
+
+#map-container {
+    position: fixed;
+    inset: 0;
+    background: #020814;
+    overflow: hidden;
+}
+
+/* STARFIELD MUST BE FULL SCREEN */
+#starfield {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+
+    z-index: 0;
+    pointer-events: none;
+
+    display: none;
+
+    background: #020814;
+}
+
+/* MAP ABOVE EVERYTHING */
+#map {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+}
