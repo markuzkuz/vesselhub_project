@@ -541,16 +541,105 @@ MAPA.on('mousemove', (e) => {
 
 //----pestanyes---
 
+
+// Capa Base estrelles o cel generades
 function initStarfield() {
 
     const canvas = document.getElementById('starfield');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas && canvas.getContext('2d');
+    if (!ctx) return { start() {}, stop() {} };
 
     const btn = document.getElementById('globe-theme-toggle');
 
     let mode = "night"; // "night" | "day"
     let stars = [];
+    let staticStars = [];
+    let twinklers = [];
+    let nightBase = null;
     let clouds = [];
+    let cloudSprites = [];
+    let skyBase = null;
+
+    const STARFIELD_FPS = 30;
+    const TWINKLER_COUNT = 100;
+    const frameInterval = 1000 / STARFIELD_FPS;
+
+    function createBuffer(w, h) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, w);
+        c.height = Math.max(1, h);
+        return c;
+    }
+
+    function generateStars(w, h) {
+        stars = [];
+        for (let i = 0; i < 2000; i++) {
+            stars.push({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                r: Math.random() * 1.3,
+                a: 0.2 + Math.random() * 0.8,
+                tw: 0.5 + Math.random() * 2,
+                ph: Math.random() * Math.PI * 2
+            });
+        }
+        // twinklers = brightest-by-prominence (size × alpha) so the dominant twinkle
+        // (currently alpha-modulated across all stars) is preserved.
+        twinklers = [...stars].sort((a, b) => (b.r * b.a) - (a.r * a.a)).slice(0, TWINKLER_COUNT);
+        const twSet = new Set(twinklers);
+        staticStars = stars.filter(s => !twSet.has(s));
+    }
+
+    function bakeNightBase(w, h) {
+        const buf = createBuffer(w, h);
+        const c = buf.getContext('2d');
+        for (const s of staticStars) {
+            c.fillStyle = `rgba(255,255,255,${s.a})`;
+            c.beginPath();
+            c.arc(Math.floor(s.x), Math.floor(s.y), s.r, 0, Math.PI * 2);
+            c.fill();
+        }
+        return buf;
+    }
+
+    function bakeSky(w, h) {
+        const buf = createBuffer(w, h);
+        const c = buf.getContext('2d');
+        const sky = c.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0.00, "#1f6fd6");
+        sky.addColorStop(0.35, "#3f8fe4");
+        sky.addColorStop(0.65, "#7cbdf2");
+        sky.addColorStop(0.85, "#bce0f8");
+        sky.addColorStop(1.00, "#e8f4ff");
+        c.fillStyle = sky;
+        c.fillRect(0, 0, w, h);
+        return buf;
+    }
+
+    function generateClouds(w, h) {
+        clouds = [];
+        const cloudCount = Math.max(5, Math.round(w / 320));
+        for (let i = 0; i < cloudCount; i++) {
+            clouds.push({
+                x: Math.random() * w,
+                y: h * (0.08 + Math.random() * 0.45),
+                scale: 0.5 + Math.random() * 1.3,
+                speed: 4 + Math.random() * 12,
+                opacity: 0.18 + Math.random() * 0.30
+            });
+        }
+    }
+
+    function bakeCloud(cloud) {
+        const b = 55 * cloud.scale;
+        // worst-case puff reach: underbelly r=1.7b at +0.25b → 1.95b down / 1.7b sideways.
+        const halfW = b * 2.4;
+        const halfH = b * 2.2;
+        const buf = createBuffer(Math.ceil(halfW * 2), Math.ceil(halfH * 2));
+        const c = buf.getContext('2d');
+        drawCloud(c, halfW, halfH, cloud.scale, cloud.opacity);
+        return { buf, halfW, halfH };
+    }
 
     // -----------------------------
     // RESIZE + STAR GENERATION
@@ -563,78 +652,63 @@ function initStarfield() {
         canvas.width = w;
         canvas.height = h;
 
-        stars = [];
+        generateStars(w, h);
+        nightBase = bakeNightBase(w, h);
 
-        for (let i = 0; i < 2000; i++) {
-            stars.push({
-                x: Math.random() * w,
-                y: Math.random() * h,
-                r: Math.random() * 1.3,
-                a: 0.2 + Math.random() * 0.8,
-                tw: 0.5 + Math.random() * 2,
-                ph: Math.random() * Math.PI * 2
-            });
-        }
+        generateClouds(w, h);
+        skyBase = bakeSky(w, h);
+        cloudSprites = clouds.map(bakeCloud);
 
-        // drifting daytime clouds (kept in the upper-mid band of the sky)
-        clouds = [];
-        const cloudCount = Math.max(5, Math.round(w / 320));
-        for (let i = 0; i < cloudCount; i++) {
-            clouds.push({
-                x: Math.random() * w,
-                y: h * (0.08 + Math.random() * 0.45),
-                scale: 0.5 + Math.random() * 1.3,
-                speed: 4 + Math.random() * 12,      // px/s
-                opacity: 0.18 + Math.random() * 0.30
-            });
-        }
+        repaint();
     }
 
     // -----------------------------
     // CLOUD HELPER
     // -----------------------------
-    function puff(cx, cy, r, op, rgb) {
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    function puff(c, cx, cy, r, op, rgb) {
+        const g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
         g.addColorStop(0, `rgba(${rgb},${op})`);
         g.addColorStop(0.55, `rgba(${rgb},${op * 0.55})`);
         g.addColorStop(1, `rgba(${rgb},0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fill();
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(cx, cy, r, 0, Math.PI * 2);
+        c.fill();
     }
 
-    function drawCloud(cx, cy, scale, opacity) {
+    function drawCloud(c, cx, cy, scale, opacity) {
         const b = 55 * scale;
         // soft grey-blue underbelly for depth
-        puff(cx, cy + b * 0.25, b * 1.7, opacity * 0.35, "200,214,228");
+        puff(c, cx, cy + b * 0.25, b * 1.7, opacity * 0.35, "200,214,228");
         // bright white body
-        puff(cx - b * 1.0, cy, b * 0.95, opacity, "255,255,255");
-        puff(cx + b * 1.0, cy, b * 1.00, opacity, "255,255,255");
-        puff(cx, cy - b * 0.55, b * 1.15, opacity, "255,255,255");
-        puff(cx - b * 0.45, cy - b * 0.15, b * 0.90, opacity, "255,255,255");
-        puff(cx + b * 0.55, cy - b * 0.10, b * 0.95, opacity, "255,255,255");
+        puff(c, cx - b * 1.0, cy, b * 0.95, opacity, "255,255,255");
+        puff(c, cx + b * 1.0, cy, b * 1.00, opacity, "255,255,255");
+        puff(c, cx, cy - b * 0.55, b * 1.15, opacity, "255,255,255");
+        puff(c, cx - b * 0.45, cy - b * 0.15, b * 0.90, opacity, "255,255,255");
+        puff(c, cx + b * 0.55, cy - b * 0.10, b * 0.95, opacity, "255,255,255");
     }
 
     // -----------------------------
     // RENDER FRAME
     // -----------------------------
-    function renderFrame() {
+    function renderFrame(now) {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const t = performance.now() / 1000;
+        const t = now / 1000;
 
         // =========================
         // 🌙 NIGHT MODE
         // =========================
         if (mode === "night") {
 
-            for (const s of stars) {
+            ctx.drawImage(nightBase, 0, 0);
+
+            for (const s of twinklers) {
                 const a = s.a * (0.65 + 0.35 * Math.sin(t * s.tw + s.ph));
                 ctx.fillStyle = `rgba(255,255,255,${a})`;
                 ctx.beginPath();
-                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.arc(Math.floor(s.x), Math.floor(s.y), s.r, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -645,37 +719,35 @@ function initStarfield() {
         // =========================
         else {
 
-            const W = canvas.width;
-            const H = canvas.height;
+            ctx.drawImage(skyBase, 0, 0);
 
-            const sky = ctx.createLinearGradient(0, 0, 0, H);
-            sky.addColorStop(0.00, "#1f6fd6");
-            sky.addColorStop(0.35, "#3f8fe4");
-            sky.addColorStop(0.65, "#7cbdf2");
-            sky.addColorStop(0.85, "#bce0f8");
-            sky.addColorStop(1.00, "#e8f4ff");
-            ctx.fillStyle = sky;
-            ctx.fillRect(0, 0, W, H);
-
-            const span = W + 400;
-            for (const c of clouds) {
+            const span = canvas.width + 400;
+            for (let i = 0; i < clouds.length; i++) {
+                const c = clouds[i];
+                const sprite = cloudSprites[i];
                 let cx = (c.x + t * c.speed) % span;
                 if (cx < -200) cx += span;
                 cx -= 200;
-                drawCloud(cx, c.y, c.scale, c.opacity);
+                ctx.drawImage(sprite.buf, Math.floor(cx - sprite.halfW), Math.floor(c.y - sprite.halfH));
             }
         }
     }
 
     let rafId = null;
+    let last = 0;
 
-    function loop() {
-        renderFrame();
+    function loop(now) {
         rafId = requestAnimationFrame(loop);
+        if (now - last < frameInterval) return;
+        last = now - ((now - last) % frameInterval);
+        renderFrame(now);
     }
 
     function start() {
-        if (rafId === null) loop();
+        if (rafId === null) {
+            last = 0;
+            rafId = requestAnimationFrame(loop);
+        }
     }
 
     function stop() {
@@ -683,6 +755,10 @@ function initStarfield() {
             cancelAnimationFrame(rafId);
             rafId = null;
         }
+    }
+
+    function repaint() {
+        renderFrame(performance.now());
     }
 
     // -----------------------------
@@ -694,13 +770,19 @@ function initStarfield() {
 
         canvas.dataset.mode = mode;
         applySky(mode);
+        repaint();
     });
 
     // -----------------------------
     // INIT
     // -----------------------------
     resize();
-    window.addEventListener('resize', resize);
+    let resizeTimer = null;
+    function onResize() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(resize, 150);
+    }
+    window.addEventListener('resize', onResize);
 
     canvas.dataset.mode = mode;
 
