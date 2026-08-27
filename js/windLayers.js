@@ -69,9 +69,9 @@ class WindField {
         const isGlobe = Number.isFinite(globeCenter);
         const referenceLongitude = isGlobe ? globeCenter : southwest.lng;
         const rawLongitudeSpan = northeast.lng - southwest.lng;
-        const longitudeSpan = isGlobe ? 360 : Math.min(Math.abs(rawLongitudeSpan), 360);
-        const minLongitude = isGlobe ? referenceLongitude - 180 : southwest.lng - longitudeSpan * 0.2;
-        const maxLongitude = isGlobe ? referenceLongitude + 180 : southwest.lng + longitudeSpan * 1.2;
+        const longitudeSpan = isGlobe ? 180 : Math.min(Math.abs(rawLongitudeSpan), 360);
+        const minLongitude = isGlobe ? referenceLongitude - 90 : southwest.lng - longitudeSpan * 0.2;
+        const maxLongitude = isGlobe ? referenceLongitude + 90 : southwest.lng + longitudeSpan * 1.2;
         const padLatitude = (northeast.lat - southwest.lat) * 0.2;
         const minLatitude = Math.max(-85, southwest.lat - padLatitude);
         const maxLatitude = Math.min(85, northeast.lat + padLatitude);
@@ -207,6 +207,13 @@ function createCanvasLayer(id, canvas) {
         },
         render(gl) {
             if (!canvas.width || !canvas.height) return;
+            const previousDepthTest = gl.isEnabled(gl.DEPTH_TEST);
+            const previousCullFace = gl.isEnabled(gl.CULL_FACE);
+            const previousBlend = gl.isEnabled(gl.BLEND);
+            const previousDepthMask = gl.getParameter(gl.DEPTH_WRITEMASK);
+            gl.disable(gl.DEPTH_TEST);
+            gl.disable(gl.CULL_FACE);
+            gl.depthMask(false);
             gl.useProgram(this.program);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.position);
             const position = gl.getAttribLocation(this.program, "a_position");
@@ -220,6 +227,8 @@ function createCanvasLayer(id, canvas) {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
             gl.uniform1i(gl.getUniformLocation(this.program, "u_texture"), 0);
             gl.enable(gl.BLEND);
@@ -227,6 +236,10 @@ function createCanvasLayer(id, canvas) {
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             gl.disableVertexAttribArray(position);
             gl.disableVertexAttribArray(texcoord);
+            gl.depthMask(previousDepthMask);
+            if (previousDepthTest) gl.enable(gl.DEPTH_TEST);
+            if (previousCullFace) gl.enable(gl.CULL_FACE);
+            if (!previousBlend) gl.disable(gl.BLEND);
             this.map.triggerRepaint();
         }
     };

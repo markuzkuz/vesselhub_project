@@ -93,6 +93,11 @@ the existing VesselHub map appearance.
   request, preventing stale data from replacing current data.
 - Globe requests normalize longitudes to the Open-Meteo `[-180, 180]` range and
    unwrap them around the globe center during interpolation.
+- Globe requests cover only the visible hemisphere instead of requesting a
+   full-world grid.
+- The custom WebGL texture pass disables depth/culling interference, preserves
+   the previous GL state, and uses linear filtering with vertical texture
+   orientation corrected.
 - Refreshes are serialized and rate-limited to one request cycle per 15 seconds.
    HTTP 429 responses pause requests for 60 seconds, schedule one retry after the
    cooldown, and are logged as a rate-limit warning instead of repeated retries.
@@ -119,12 +124,14 @@ production repository.
 
 | File | Exact changed lines | Change |
 |---|---:|---|
-| `js/windLayers.js` | 1-624 | New module containing the Open-Meteo API client, explicit ECMWF model selection, normalized globe longitude sampling, serialized refreshes, 429 cooldown and retry handling, wind grid, MapLibre custom layers, globe horizon clipping, visible-globe particle seeding, interpolation, heatmap canvas, particle canvas, point-info popup, model-data-time status, controls, refresh lifecycle, and cleanup. |
+| `js/windLayers.js` | 1-637 | New module containing the Open-Meteo API client, explicit ECMWF model selection, normalized globe longitude sampling, visible-hemisphere sampling, serialized refreshes, 429 cooldown and retry handling, WebGL state isolation, wind grid, MapLibre custom layers, globe horizon clipping, visible-globe particle seeding, interpolation, heatmap canvas, particle canvas, point-info popup, model-data-time status, controls, refresh lifecycle, and cleanup. |
 | `js/layers.js` | 2 | Imports `initWindLayers` from the new module. |
 | `js/layers.js` | 61 | Calls `initWindLayers(MAPA)` from `LoadLayers`. |
 | `index.html` | 254-275 | Adds the weather layer toggle, density radios, particle count and speed sliders, plus last-update/model status inside `#layers-panel`. |
 | `css/style.css` | 946-961 | Adds weather-control spacing and last-update/model status styling. |
-| `docs/wind-layers.md` | 109-130 | This exact change map and its line references. |
+| `docs/wind-layers.md` | 109-137 | This exact change map and its line references. |
+| `README.md` | 1-57 | New project overview, local run instructions, architecture summary, wind-layer usage, data services, and production notes. |
+| `.gitignore` | 1-4 | Ignores `CLAUDE.md` files while retaining the existing macOS and local planning-directory rules. |
 
 The working tree also contains unrelated pre-existing edits in `index.html` and
 `js/fleet.js`. They are not part of the wind integration and are excluded from
