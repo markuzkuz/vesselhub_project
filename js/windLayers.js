@@ -287,12 +287,19 @@ export function initWindLayers(MAPA) {
     let weatherLayersAdded = false;
     let refreshInFlight = false;
     let lastRefreshAt = 0;
+    let retryAfter = 0;
+    let retryTimer;
 
     function updateStatus() {
         const updateElement = document.getElementById("wind-last-update");
         const modelElement = document.getElementById("wind-model");
         if (updateElement) updateElement.textContent = formatModelTime(windField.dataTime);
         if (modelElement) modelElement.textContent = WIND_MODEL_LABEL;
+    }
+
+    function updateStatusMessage(message) {
+        const updateElement = document.getElementById("wind-last-update");
+        if (updateElement) updateElement.textContent = message;
     }
 
     function addWeatherLayersToMap() {
@@ -483,6 +490,7 @@ export function initWindLayers(MAPA) {
     async function refresh(force = false) {
         if (!enabled) return;
         if (refreshInFlight) return;
+        if (Date.now() < retryAfter) return;
         if (!force && Date.now() - lastRefreshAt < 15000) return;
         requestController?.abort();
         requestController = new AbortController();
@@ -496,9 +504,18 @@ export function initWindLayers(MAPA) {
             drawHeatmap();
             updateStatus();
             lastRefreshAt = Date.now();
+            retryAfter = 0;
         } catch (error) {
             if (error.name === "AbortError") return;
-            if (error.message.includes("HTTP 429")) console.warn("Wind layer rate limited by Open-Meteo; retrying after the cooldown.");
+            if (error.message.includes("HTTP 429")) {
+                retryAfter = Date.now() + 60000;
+                updateStatusMessage("Rate limited; retrying in 1 min");
+                clearTimeout(retryTimer);
+                retryTimer = setTimeout(() => {
+                    if (enabled) refresh();
+                }, 60000);
+                console.warn("Wind layer rate limited by Open-Meteo; retrying after the cooldown.");
+            }
             else console.error("Wind layer refresh failed:", error);
         } finally {
             refreshInFlight = false;

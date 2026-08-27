@@ -93,9 +93,9 @@ the existing VesselHub map appearance.
   request, preventing stale data from replacing current data.
 - Globe requests normalize longitudes to the Open-Meteo `[-180, 180]` range and
    unwrap them around the globe center during interpolation.
-- Refreshes are serialized and rate-limited to one request cycle per 15 seconds
-   unless the user explicitly enables the layer or changes density. HTTP 429
-   responses are logged as a rate-limit warning instead of repeated retries.
+- Refreshes are serialized and rate-limited to one request cycle per 15 seconds.
+   HTTP 429 responses pause requests for 60 seconds, schedule one retry after the
+   cooldown, and are logged as a rate-limit warning instead of repeated retries.
 - Refreshes happen after `moveend`, not during drag or zoom, to reduce API
   requests and canvas work.
 - The particle animation pauses while the map is moving.
@@ -119,7 +119,7 @@ production repository.
 
 | File | Exact changed lines | Change |
 |---|---:|---|
-| `js/windLayers.js` | 1-607 | New module containing the Open-Meteo API client, explicit ECMWF model selection, normalized globe longitude sampling, serialized refreshes, wind grid, MapLibre custom layers, globe horizon clipping, visible-globe particle seeding, interpolation, heatmap canvas, particle canvas, point-info popup, model-data-time status, controls, refresh lifecycle, and cleanup. |
+| `js/windLayers.js` | 1-624 | New module containing the Open-Meteo API client, explicit ECMWF model selection, normalized globe longitude sampling, serialized refreshes, 429 cooldown and retry handling, wind grid, MapLibre custom layers, globe horizon clipping, visible-globe particle seeding, interpolation, heatmap canvas, particle canvas, point-info popup, model-data-time status, controls, refresh lifecycle, and cleanup. |
 | `js/layers.js` | 2 | Imports `initWindLayers` from the new module. |
 | `js/layers.js` | 61 | Calls `initWindLayers(MAPA)` from `LoadLayers`. |
 | `index.html` | 254-275 | Adds the weather layer toggle, density radios, particle count and speed sliders, plus last-update/model status inside `#layers-panel`. |
