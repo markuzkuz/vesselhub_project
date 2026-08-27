@@ -942,3 +942,20 @@ padding: 0 !important;
     inset: 0;
     z-index: 1;
 }
+
+.weather-layer-options {
+  margin: 6px 0 12px 20px;
+  font-size: 0.9em;
+}
+
+.weather-layer-options input[type="range"] {
+  display: block;
+  width: 100%;
+}
+
+.wind-data-status {
+  margin-top: 8px;
+  color: #666;
+  font-size: 0.85em;
+  line-height: 1.4;
+}

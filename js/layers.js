@@ -1,4 +1,5 @@
 import { openCruiseDataPanel } from "./cruiseCharts.js";
+import { initWindLayers } from "./windLayers.js";
 
 const CRUISE_LAYER_IDS = new Set(["sdgcruises", "odbcruises", "hescruises", "gdccruises"]);
 const TRACK_LAYER_IDS = new Set(["sdgtracks", "odbtracks", "hestracks", "gdctracks"]);
@@ -57,6 +58,7 @@ export function LoadLayers(MAPA) {
     addWFSLayers(MAPA);
     addEEZWMSLayer(MAPA);
     addIDEIHMWMSLayer(MAPA);
+    initWindLayers(MAPA);
 
     initCoordinateGrid(MAPA);
 

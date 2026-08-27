@@ -351,7 +351,6 @@ MAPA.on("load", () => {
     starfieldCtrl = initStarfield();
 
     document.getElementById('starfield').style.display = 'none';
-    document.getElementById('globe-theme-toggle').style.display = 'none';
 });
 
 // --- LISTENERS GENERALS ---
@@ -363,25 +362,47 @@ $('input[name="basemap"]').on('change', function () {
     if (typeof applyGridBasemapStyle === 'function') applyGridBasemapStyle(MAPA);
 });
 
+window.cerrarIframe = function () { $('#lateral').css('left', '-500px'); $('#iframe').attr('src', ''); };
+['ODB', 'SDG', 'HES', 'eez-wms'].forEach(id => {
+    $(`#${id}-check, #${id}`).on('change', (e) => {
+    if (MAPA.getLayer(id.replace('-check', ''))) MAPA.setLayoutProperty(id.replace('-check', ''),
+            'visibility', e.target.checked ? 'visible' : 'none');
+    });
+});
+
+
 $('#projection').on('change', (e) => {
 
-    const isGlobe = e.target.value === 'globe';
+    const projectionValue = e.target.value;
+    
+    // Extract base projection type (globe or mercator)
+    let projType = projectionValue.split('-')[0]; // 'globe-night' -> 'globe', 'mercator' -> 'mercator'
+    
+    const isGlobe = (projType === 'globe');
+    const isNightGlobe = (projectionValue === 'globe-night');
 
-    MAPA.setProjection({ type: e.target.value });
+    console.log('Projection changed to:', projectionValue, 'Type:', projType, 'IsGlobe:', isGlobe);
+    
+    MAPA.setProjection({ type: projType });
 
     const starfield = document.getElementById('starfield');
-    const btn = document.getElementById('globe-theme-toggle');
 
     if (isGlobe) {
-
+        // Show starfield for any globe mode
         starfield.style.display = 'block';
-        btn.style.display = 'block';
         starfieldCtrl?.start();
-
+        
+        // Apply appropriate sky based on projection mode
+        if (isNightGlobe) {
+            applySky('night');
+            starfieldCtrl?.setMode?.('night');
+        } else {
+            applySky('day');
+            starfieldCtrl?.setMode?.('day');
+        }
     } else {
-
+        // Mercator mode - hide starfield
         starfield.style.display = 'none';
-        btn.style.display = 'none';
         starfieldCtrl?.stop();
     }
 });
@@ -605,13 +626,8 @@ function initStarfield() {
     function bakeSky(w, h) {
         const buf = createBuffer(w, h);
         const c = buf.getContext('2d');
-        const sky = c.createLinearGradient(0, 0, 0, h);
-        sky.addColorStop(0.00, "#1f6fd6");
-        sky.addColorStop(0.35, "#3f8fe4");
-        sky.addColorStop(0.65, "#7cbdf2");
-        sky.addColorStop(0.85, "#bce0f8");
-        sky.addColorStop(1.00, "#e8f4ff");
-        c.fillStyle = sky;
+        // White background for day mode (no blue sky, no clouds)
+        c.fillStyle = '#ffffff';
         c.fillRect(0, 0, w, h);
         return buf;
     }
@@ -718,18 +734,8 @@ function initStarfield() {
         // ☀️ DAY MODE
         // =========================
         else {
-
+            // Draw white background only (MapLibre globe handles the earth glare)
             ctx.drawImage(skyBase, 0, 0);
-
-            const span = canvas.width + 400;
-            for (let i = 0; i < clouds.length; i++) {
-                const c = clouds[i];
-                const sprite = cloudSprites[i];
-                let cx = (c.x + t * c.speed) % span;
-                if (cx < -200) cx += span;
-                cx -= 200;
-                ctx.drawImage(sprite.buf, Math.floor(cx - sprite.halfW), Math.floor(c.y - sprite.halfH));
-            }
         }
     }
 
@@ -761,17 +767,6 @@ function initStarfield() {
         renderFrame(performance.now());
     }
 
-    // -----------------------------
-    // TOGGLE BUTTON
-    // -----------------------------
-    btn.addEventListener('click', () => {
-
-        mode = (mode === "night") ? "day" : "night";
-
-        canvas.dataset.mode = mode;
-        applySky(mode);
-        repaint();
-    });
 
     // -----------------------------
     // INIT
@@ -786,5 +781,5 @@ function initStarfield() {
 
     canvas.dataset.mode = mode;
 
-    return { start, stop };
+    return { start, stop, setMode: (newMode) => { mode = newMode; canvas.dataset.mode = mode; applySky(mode); repaint(); } };
 }
