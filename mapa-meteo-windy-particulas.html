@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa meteo · Partículas de viento estilo Windy</title>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#11192c; --panel-border:#21304d; --ink:#e7edf7;
+    --muted:#8ea0c2; --accent:#3ea6ff; --accent-2:#ffcf5c; --ok:#4fd1a5;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);}
+  #map-wrap{position:absolute;inset:0;}
+  #map{position:absolute;inset:0;}
+  #heat-canvas{position:absolute;inset:0;pointer-events:none;transition:opacity .25s ease;}
+  #wind-canvas{position:absolute;inset:0;pointer-events:none;transition:opacity .25s ease;}
+
+  .panel{position:absolute;z-index:5;background:rgba(17,25,44,0.92);border:1px solid var(--panel-border);
+    border-radius:10px;backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,0.35);}
+  #controls{top:12px;right:12px;width:310px;padding:14px 16px;font-size:13px;max-height:92vh;overflow:auto;}
+  #controls h1{font-size:14px;margin:0 0 10px;letter-spacing:.03em;display:flex;align-items:center;gap:8px;}
+  #controls h1 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  .row{display:flex;align-items:center;justify-content:space-between;margin:8px 0;gap:8px;}
+  .row label{color:var(--muted);}
+  .switch{position:relative;width:36px;height:20px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:#26324d;border-radius:20px;cursor:pointer;transition:.15s;}
+  .slider:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#c7d3ea;border-radius:50%;transition:.15s;}
+  input:checked + .slider{background:var(--accent);}
+  input:checked + .slider:before{transform:translateX(16px);background:#fff;}
+  fieldset{border:1px solid var(--panel-border);border-radius:8px;margin:12px 0 4px;padding:10px;}
+  legend{padding:0 6px;color:var(--accent-2);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
+  input[type=text]{width:100%;background:#0b1526;border:1px solid var(--panel-border);color:var(--ink);
+    border-radius:6px;padding:6px 8px;font-size:12px;margin-top:4px;}
+  input[type=range]{width:100%;margin-top:4px;accent-color:var(--accent);}
+  .field{margin-bottom:8px;}
+  .field label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;}
+  button{width:100%;background:var(--accent);color:#04101f;border:none;border-radius:6px;
+    padding:7px 0;font-weight:600;cursor:pointer;font-size:12px;margin-top:4px;}
+  button:hover{filter:brightness(1.08);}
+  button.secondary{background:#26324d;color:var(--ink);}
+  .status{margin-top:10px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;}
+  .status .live{color:var(--ok);}
+  #legend{left:12px;bottom:12px;padding:10px 14px;font-size:11px;color:var(--muted);}
+  #legend h2{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-2);margin:0 0 6px;}
+  .scale{display:flex;gap:6px;margin-top:6px;align-items:center;}
+  .chip{width:14px;height:14px;border-radius:3px;}
+  .wave-marker{width:14px;height:14px;border-radius:50%;background:#1f4fa8;border:2px solid #7fc2ff;
+    box-shadow:0 0 6px rgba(127,194,255,.7);cursor:pointer;}
+  .maplibregl-popup-content{background:var(--panel);color:var(--ink);border-radius:8px;font-size:12px;}
+  .maplibregl-popup-tip{border-top-color:var(--panel) !important;border-bottom-color:var(--panel) !important;}
+  .poptitle{font-weight:600;margin-bottom:4px;color:var(--accent-2);}
+  .radio-group{display:flex;gap:6px;margin-top:4px;}
+  .radio-group label{flex:1;text-align:center;background:#0b1526;border:1px solid var(--panel-border);
+    border-radius:6px;padding:5px 0;font-size:11px;color:var(--muted);cursor:pointer;}
+  .radio-group input{display:none;}
+  .radio-group input:checked + span{color:#04101f;}
+  .radio-group label:has(input:checked){background:var(--accent);color:#04101f;}
+</style>
+</head>
+<body>
+
+<div id="map-wrap">
+  <div id="map"></div>
+  <canvas id="heat-canvas"></canvas>
+  <canvas id="wind-canvas"></canvas>
+</div>
+
+<div id="controls" class="panel">
+  <h1><span class="dot"></span>Viento fluido · Open-Meteo</h1>
+
+  <div class="field">
+    <label>Capa base</label>
+    <div class="radio-group">
+      <label><input type="radio" name="basemap" value="meteo" checked><span>Meteo (costa)</span></label>
+      <label><input type="radio" name="basemap" value="osm"><span>OSM completo</span></label>
+    </div>
+  </div>
+
+  <div class="row">
+    <label for="toggleParticles">Partículas de viento</label>
+    <div class="switch"><input type="checkbox" id="toggleParticles" checked><span class="slider"></span></div>
+  </div>
+
+  <div class="field">
+    <label>Densidad de rejilla <span id="densityLabel">Media</span></label>
+    <div class="radio-group">
+      <label><input type="radio" name="density" value="low"><span>Baja</span></label>
+      <label><input type="radio" name="density" value="mid" checked><span>Media</span></label>
+      <label><input type="radio" name="density" value="high"><span>Alta</span></label>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Nº de partículas <span id="countLabel">800</span></label>
+    <input type="range" id="particleCount" min="150" max="2000" step="50" value="800">
+  </div>
+  <div class="field">
+    <label>Velocidad de animación <span id="speedLabel">1.0×</span></label>
+    <input type="range" id="animSpeed" min="0.2" max="3" step="0.1" value="1.0">
+  </div>
+
+  <div class="row">
+    <label for="toggleWave">Oleaje en costa</label>
+    <div class="switch"><input type="checkbox" id="toggleWave" checked><span class="slider"></span></div>
+  </div>
+
+  <fieldset>
+    <legend>Capa WMS de GeoServer</legend>
+    <div class="field">
+      <label>URL base del WMS</label>
+      <input type="text" id="gsUrl" placeholder="https://tuservidor/geoserver/wms">
+    </div>
+    <div class="field">
+      <label>Nombre de capa (workspace:capa)</label>
+      <input type="text" id="gsLayer" placeholder="mi_workspace:mi_capa">
+    </div>
+    <button id="gsApply">Añadir / actualizar capa</button>
+    <button id="gsRemove" class="secondary">Quitar capa</button>
+  </fieldset>
+
+  <div class="status">
+    <span id="statusText">Cargando datos…</span>
+    <span class="live" id="statusLive"></span>
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+    Clic en el mapa: lectura exacta de viento en ese punto.
+  </div>
+</div>
+
+<div id="legend" class="panel">
+  <h2>Viento (nudos)</h2>
+  <div id="windGradientBar" style="height:10px;border-radius:4px;margin-top:4px;"></div>
+  <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:3px;">
+    <span>0</span><span>10</span><span>20</span><span>30</span><span>40+</span>
+  </div>
+  <div style="font-size:10px;margin-top:4px;">Color de fondo = intensidad · flechas = dirección</div>
+  <h2 style="margin-top:10px;">Oleaje</h2>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <div style="width:12px;height:12px;border-radius:50%;background:#1f4fa8;border:2px solid #7fc2ff;"></div>
+    <span>Altura de ola en punto de costa</span>
+  </div>
+</div>
+
+<script>
+// =================================================================
+// CONFIG
+// =================================================================
+const START_CENTER = [-3.70, 40.42]; // Madrid
+const START_ZOOM = 5.2;
+
+const COASTAL_POINTS = [
+  { name: "A Coruña",  lat: 43.37, lon: -8.41 },
+  { name: "Bilbao",    lat: 43.35, lon: -3.02 },
+  { name: "Barcelona", lat: 41.35, lon:  2.20 },
+  { name: "Valencia",  lat: 39.45, lon:  0.30 },
+  { name: "Cádiz",     lat: 36.55, lon: -6.35 },
+  { name: "Málaga",    lat: 36.65, lon: -4.35 },
+  { name: "Vigo",      lat: 42.20, lon: -8.85 },
+  { name: "Palma",     lat: 39.45, lon:  2.75 },
+];
+
+const DENSITY_PRESETS = {
+  low:  { cols: 8,  rows: 6  },
+  mid:  { cols: 12, rows: 8  },
+  high: { cols: 16, rows: 11 }, // se divide en 2 peticiones si supera 100 puntos
+};
+
+// =================================================================
+// MAPA BASE
+// =================================================================
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256,
+             attribution: '© OpenStreetMap contributors' }
+    },
+    // OSM oculto por defecto: el mapa base por defecto es la capa "meteo"
+    // (fondo oceánico + tierra + línea de costa), añadida tras 'load'.
+    layers: [{ id: 'osm', type: 'raster', source: 'osm', layout: { visibility: 'none' } }]
+  },
+  center: START_CENTER,
+  zoom: START_ZOOM
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+// -----------------------------------------------------------------
+// CAPA BASE "METEO": fondo oceánico + tierra + línea de costa,
+// pensada para no competir visualmente con las partículas de viento.
+// -----------------------------------------------------------------
+const METEO_LAYER_IDS = ['bg-ocean', 'land-fill', 'coastline'];
+
+async function loadMeteoBasemap() {
+  const res = await fetch('https://unpkg.com/world-atlas@2/land-110m.json');
+  const topology = await res.json();
+  const landGeo = topojson.feature(topology, topology.objects.land);
+
+  map.addSource('land', { type: 'geojson', data: landGeo });
+
+  // se insertan antes de 'osm' para quedar siempre por debajo de esa capa
+  map.addLayer({ id: 'bg-ocean', type: 'background', paint: { 'background-color': '#0b1526' } }, 'osm');
+  map.addLayer({ id: 'land-fill', type: 'fill', source: 'land',
+    paint: { 'fill-color': '#16233d' } }, 'osm');
+  map.addLayer({ id: 'coastline', type: 'line', source: 'land',
+    paint: { 'line-color': '#4d6690', 'line-width': 1, 'line-opacity': 0.9 } }, 'osm');
+}
+
+function setBasemap(mode) {
+  const meteoVisible = mode === 'meteo';
+  METEO_LAYER_IDS.forEach(id => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', meteoVisible ? 'visible' : 'none');
+  });
+  if (map.getLayer('osm')) map.setLayoutProperty('osm', 'visibility', meteoVisible ? 'none' : 'visible');
+}
+
+document.querySelectorAll('input[name=basemap]').forEach(r => {
+  r.addEventListener('change', (e) => setBasemap(e.target.value));
+});
+
+// =================================================================
+// CAPA WMS GEOSERVER
+// =================================================================
+const GS_SOURCE_ID = 'geoserver-wms';
+const GS_LAYER_ID = 'geoserver-wms-layer';
+
+function buildWmsUrl(base, layer) {
+  const params = new URLSearchParams({
+    service: 'WMS', version: '1.1.0', request: 'GetMap',
+    layers: layer, styles: '', width: '256', height: '256',
+    srs: 'EPSG:3857', format: 'image/png', transparent: 'true'
+  });
+  return `${base}?${params.toString()}&bbox={bbox-epsg-3857}`;
+}
+document.getElementById('gsApply').addEventListener('click', () => {
+  const base = document.getElementById('gsUrl').value.trim();
+  const layer = document.getElementById('gsLayer').value.trim();
+  if (!base || !layer) { alert('Rellena la URL del WMS y el nombre de la capa.'); return; }
+  if (map.getLayer(GS_LAYER_ID)) map.removeLayer(GS_LAYER_ID);
+  if (map.getSource(GS_SOURCE_ID)) map.removeSource(GS_SOURCE_ID);
+  map.addSource(GS_SOURCE_ID, { type: 'raster', tiles: [buildWmsUrl(base, layer)], tileSize: 256 });
+  // sin beforeId: se añade en la cima, por encima de cualquier mapa base activo (meteo u OSM)
+  map.addLayer({ id: GS_LAYER_ID, type: 'raster', source: GS_SOURCE_ID, paint: { 'raster-opacity': 0.85 } });
+});
+document.getElementById('gsRemove').addEventListener('click', () => {
+  if (map.getLayer(GS_LAYER_ID)) map.removeLayer(GS_LAYER_ID);
+  if (map.getSource(GS_SOURCE_ID)) map.removeSource(GS_SOURCE_ID);
+});
+
+// =================================================================
+// OLEAJE — puntos fijos de costa
+// =================================================================
+let waveMarkers = [];
+let waveEnabled = true;
+
+async function refreshWaves() {
+  if (!waveEnabled) return;
+  const lats = COASTAL_POINTS.map(p => p.lat).join(',');
+  const lons = COASTAL_POINTS.map(p => p.lon).join(',');
+  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
+              `&current=wave_height,wave_direction,wave_period,swell_wave_height&timezone=auto`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const results = Array.isArray(data) ? data : [data];
+    waveMarkers.forEach(m => m.remove());
+    waveMarkers = [];
+    results.forEach((loc, idx) => {
+      if (!loc.current) return;
+      const c = loc.current, p = COASTAL_POINTS[idx];
+      const el = document.createElement('div');
+      el.className = 'wave-marker';
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        new maplibregl.Popup({ offset: 12 }).setLngLat([p.lon, p.lat])
+          .setHTML(`<div class="poptitle">Oleaje · ${p.name}</div>
+                     Altura de ola: ${c.wave_height ?? '–'} m<br>
+                     Periodo: ${c.wave_period ?? '–'} s<br>
+                     Dirección: ${c.wave_direction ?? '–'}°<br>
+                     Swell: ${c.swell_wave_height ?? '–'} m`).addTo(map);
+      });
+      waveMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([p.lon, p.lat]).addTo(map));
+    });
+  } catch (err) { console.error(err); }
+}
+document.getElementById('toggleWave').addEventListener('change', (e) => {
+  waveEnabled = e.target.checked;
+  if (waveEnabled) refreshWaves(); else { waveMarkers.forEach(m => m.remove()); waveMarkers = []; }
+});
+
+// =================================================================
+// CAMPO DE VIENTO (rejilla u/v desde Open-Meteo)
+// =================================================================
+class WindField {
+  constructor() { this.cols = 0; this.rows = 0; this.bounds = null; this.u = []; this.v = []; this.ready = false; }
+
+  static toUV(speedKt, dirDeg) {
+    // dirDeg = dirección DESDE donde sopla; convertimos a componentes hacia donde VA
+    const rad = (dirDeg * Math.PI) / 180;
+    const speedMs = speedKt * 0.514444; // nudos -> m/s
+    const u = -speedMs * Math.sin(rad); // este-oeste
+    const v = -speedMs * Math.cos(rad); // norte-sur
+    return { u, v };
+  }
+
+  async load(bounds, cols, rows) {
+    const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+    // margen del 20% para que las partículas no se corten justo en el borde
+    const padLon = (ne.lng - sw.lng) * 0.2;
+    const padLat = (ne.lat - sw.lat) * 0.2;
+    const minLon = sw.lng - padLon, maxLon = ne.lng + padLon;
+    const minLat = Math.max(-85, sw.lat - padLat), maxLat = Math.min(85, ne.lat + padLat);
+
+    const lats = [], lons = [];
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        lons.push(minLon + (maxLon - minLon) * i / (cols - 1));
+        lats.push(minLat + (maxLat - minLat) * j / (rows - 1));
+      }
+    }
+
+    // Open-Meteo admite muchas coordenadas por petición, pero troceamos en
+    // bloques de 100 por seguridad/latencia.
+    const CHUNK = 100;
+    const uArr = new Array(lats.length).fill(0);
+    const vArr = new Array(lats.length).fill(0);
+
+    for (let start = 0; start < lats.length; start += CHUNK) {
+      const end = Math.min(start + CHUNK, lats.length);
+      const latSlice = lats.slice(start, end).map(v => v.toFixed(3)).join(',');
+      const lonSlice = lons.slice(start, end).map(v => v.toFixed(3)).join(',');
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latSlice}&longitude=${lonSlice}` +
+                  `&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&timezone=UTC`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const results = Array.isArray(data) ? data : [data];
+      results.forEach((loc, k) => {
+        const idx = start + k;
+        if (loc.current) {
+          const { u, v } = WindField.toUV(loc.current.wind_speed_10m, loc.current.wind_direction_10m);
+          uArr[idx] = u; vArr[idx] = v;
+        }
+      });
+    }
+
+    this.cols = cols; this.rows = rows;
+    this.minLon = minLon; this.maxLon = maxLon; this.minLat = minLat; this.maxLat = maxLat;
+    this.u = uArr; this.v = vArr;
+    this.ready = true;
+  }
+
+  // interpolación bilineal
+  vectorAt(lng, lat) {
+    if (!this.ready) return { u: 0, v: 0, speedKt: 0 };
+    const fx = ((lng - this.minLon) / (this.maxLon - this.minLon)) * (this.cols - 1);
+    const fy = ((lat - this.minLat) / (this.maxLat - this.minLat)) * (this.rows - 1);
+    if (fx < 0 || fx > this.cols - 1 || fy < 0 || fy > this.rows - 1) return null;
+
+    const x0 = Math.floor(fx), x1 = Math.min(x0 + 1, this.cols - 1);
+    const y0 = Math.floor(fy), y1 = Math.min(y0 + 1, this.rows - 1);
+    const tx = fx - x0, ty = fy - y0;
+    const idx = (x, y) => y * this.cols + x;
+
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const u00 = this.u[idx(x0, y0)], u10 = this.u[idx(x1, y0)], u01 = this.u[idx(x0, y1)], u11 = this.u[idx(x1, y1)];
+    const v00 = this.v[idx(x0, y0)], v10 = this.v[idx(x1, y0)], v01 = this.v[idx(x0, y1)], v11 = this.v[idx(x1, y1)];
+    const u = lerp(lerp(u00, u10, tx), lerp(u01, u11, tx), ty);
+    const v = lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), ty);
+    const speedKt = Math.hypot(u, v) * 1.94384; // m/s -> nudos
+    return { u, v, speedKt };
+  }
+}
+
+const windField = new WindField();
+
+// --- Escala de color continua para la INTENSIDAD (fondo), en nudos ---
+// Paradas inspiradas en las escalas típicas de visores de viento marino.
+const WIND_COLOR_STOPS = [
+  { kt: 0,  rgb: [20, 40, 70]   },  // calma, casi el color del fondo
+  { kt: 5,  rgb: [30, 90, 120]  },  // brisa muy suave, azul
+  { kt: 10, rgb: [40, 150, 130] },  // brisa suave, turquesa
+  { kt: 17, rgb: [120, 190, 80] },  // brisa moderada, verde
+  { kt: 25, rgb: [230, 205, 60] },  // fresca, amarillo
+  { kt: 33, rgb: [235, 130, 45] },  // fuerte, naranja
+  { kt: 42, rgb: [220, 60, 60]  },  // muy fuerte, rojo
+  { kt: 55, rgb: [180, 60, 190] },  // temporal, magenta
+];
+
+function windIntensityColor(kt, alpha) {
+  const stops = WIND_COLOR_STOPS;
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (kt >= stops[i].kt && kt <= stops[i + 1].kt) { lo = stops[i]; hi = stops[i + 1]; break; }
+  }
+  if (kt <= stops[0].kt) { lo = hi = stops[0]; }
+  if (kt >= stops[stops.length - 1].kt) { lo = hi = stops[stops.length - 1]; }
+  const span = Math.max(hi.kt - lo.kt, 1e-6);
+  const t = Math.min(Math.max((kt - lo.kt) / span, 0), 1);
+  const r = Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t);
+  const g = Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t);
+  const b = Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// pinta la barra de degradado de la leyenda una sola vez
+(function paintLegendGradient() {
+  const bar = document.getElementById('windGradientBar');
+  const stopsCss = WIND_COLOR_STOPS
+    .map(s => `rgba(${s.rgb[0]},${s.rgb[1]},${s.rgb[2]},1) ${Math.min(s.kt / 45 * 100, 100)}%`)
+    .join(', ');
+  bar.style.background = `linear-gradient(90deg, ${stopsCss})`;
+})();
+
+// =================================================================
+// SISTEMA DE PARTÍCULAS (canvas 2D superpuesto al mapa)
+// =================================================================
+const heatCanvas = document.getElementById('heat-canvas');
+const heatCtx = heatCanvas.getContext('2d');
+const canvas = document.getElementById('wind-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let particlesEnabled = true;
+let particleCount = 800;
+let animSpeedFactor = 1.0;
+let rafId = null;
+let dragging = false;
+
+function resizeCanvas() {
+  const rect = map.getContainer().getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  heatCanvas.width = rect.width * dpr;
+  heatCanvas.height = rect.height * dpr;
+  heatCanvas.style.width = rect.width + 'px';
+  heatCanvas.style.height = rect.height + 'px';
+  heatCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function randomPointInBounds() {
+  const b = map.getBounds();
+  const sw = b.getSouthWest(), ne = b.getNorthEast();
+  return {
+    lng: sw.lng + Math.random() * (ne.lng - sw.lng),
+    lat: sw.lat + Math.random() * (ne.lat - sw.lat),
+  };
+}
+
+function spawnParticle() {
+  const p = randomPointInBounds();
+  return { lng: p.lng, lat: p.lat, age: Math.random() * 60, maxAge: 40 + Math.random() * 60 };
+}
+
+function initParticles(n) {
+  particles = Array.from({ length: n }, spawnParticle);
+}
+
+function stepParticles(dtMs) {
+  const dt = (dtMs / 1000) * animSpeedFactor * 3000; // escala visual del tiempo simulado
+  const metersPerDegLat = 111320;
+
+  for (const p of particles) {
+    const vec = windField.vectorAt(p.lng, p.lat);
+    if (!vec) { Object.assign(p, spawnParticle()); continue; }
+
+    const metersPerDegLon = 111320 * Math.cos((p.lat * Math.PI) / 180);
+    const prevLng = p.lng, prevLat = p.lat;
+    p.lng += (vec.u * dt) / Math.max(metersPerDegLon, 1);
+    p.lat += (vec.v * dt) / metersPerDegLat;
+    p.age += 1;
+    p._prev = { lng: prevLng, lat: prevLat };
+    p._speedKt = vec.speedKt;
+
+    if (p.age > p.maxAge) Object.assign(p, spawnParticle(), { _prev: null });
+  }
+}
+
+function drawParticles() {
+  const rect = map.getContainer().getBoundingClientRect();
+  // desvanece el rastro anterior (efecto estela)
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.fillRect(0, 0, rect.width, rect.height);
+  ctx.globalCompositeOperation = 'source-over';
+
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = 'round';
+  for (const p of particles) {
+    if (!p._prev) continue;
+    const a = map.project([p._prev.lng, p._prev.lat]);
+    const b = map.project([p.lng, p.lat]);
+    // color casi uniforme: solo indica dirección/flujo, la intensidad va en el fondo.
+    // ligerísima variación de opacidad con la velocidad para dar algo de profundidad.
+    const alpha = Math.min(0.35 + (p._speedKt || 0) / 60, 0.85);
+    ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+}
+
+let lastFrameTime = performance.now();
+function animate(now) {
+  if (!particlesEnabled || dragging) { rafId = requestAnimationFrame(animate); lastFrameTime = now; return; }
+  const dtMs = Math.min(now - lastFrameTime, 50);
+  lastFrameTime = now;
+  stepParticles(dtMs);
+  drawParticles();
+  rafId = requestAnimationFrame(animate);
+}
+
+// =================================================================
+// CARGA / REFRESCO DE LA REJILLA DE VIENTO
+// =================================================================
+let currentDensity = 'mid';
+let loadToken = 0;
+
+async function refreshWindField() {
+  if (!particlesEnabled) return;
+  const token = ++loadToken;
+  setStatus('Actualizando campo de viento…', false);
+  const { cols, rows } = DENSITY_PRESETS[currentDensity];
+  try {
+    await windField.load(map.getBounds(), cols, rows);
+    if (token !== loadToken) return; // llegó una petición más reciente, descartar
+    drawHeatmap();
+    setStatus(`Actualizado ${new Date().toLocaleTimeString()}`, true);
+  } catch (err) {
+    console.error(err);
+    setStatus('Error al consultar Open-Meteo', false);
+  }
+}
+
+function setStatus(text, live) {
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('statusLive').textContent = live ? '● en vivo' : '';
+}
+
+// -------------------------------------------------------------------
+// MAPA DE INTENSIDAD (fondo): renderiza el campo de viento en baja
+// resolución y lo escala con suavizado para conseguir un degradado
+// continuo, sin recalcular por cada píxel en cada frame.
+// -------------------------------------------------------------------
+const heatOffscreen = document.createElement('canvas');
+const heatOffCtx = heatOffscreen.getContext('2d');
+
+function drawHeatmap() {
+  if (!windField.ready) return;
+  const rect = map.getContainer().getBoundingClientRect();
+  const OFF_W = 140, OFF_H = Math.max(1, Math.round(140 * (rect.height / rect.width)));
+  heatOffscreen.width = OFF_W;
+  heatOffscreen.height = OFF_H;
+
+  const imgData = heatOffCtx.createImageData(OFF_W, OFF_H);
+  for (let y = 0; y < OFF_H; y++) {
+    for (let x = 0; x < OFF_W; x++) {
+      const screenX = (x / OFF_W) * rect.width;
+      const screenY = (y / OFF_H) * rect.height;
+      const lngLat = map.unproject([screenX, screenY]);
+      const vec = windField.vectorAt(lngLat.lng, lngLat.lat);
+      const i = (y * OFF_W + x) * 4;
+      if (!vec) { imgData.data[i + 3] = 0; continue; }
+      const [r, g, b] = windIntensityColor(vec.speedKt, 1).match(/[\d.]+/g).map(Number);
+      imgData.data[i] = r; imgData.data[i + 1] = g; imgData.data[i + 2] = b;
+      imgData.data[i + 3] = Math.round(255 * 0.6); // opacidad global del fondo
+    }
+  }
+  heatOffCtx.putImageData(imgData, 0, 0);
+
+  heatCtx.imageSmoothingEnabled = true;
+  heatCtx.clearRect(0, 0, rect.width, rect.height);
+  heatCtx.drawImage(heatOffscreen, 0, 0, OFF_W, OFF_H, 0, 0, rect.width, rect.height);
+}
+
+// =================================================================
+// CLIC EN EL MAPA: lectura exacta en un punto
+// =================================================================
+map.on('click', async (e) => {
+  if (e.originalEvent.target.closest && e.originalEvent.target.closest('.wave-marker')) return;
+  const { lng, lat } = e.lngLat;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}` +
+              `&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code` +
+              `&wind_speed_unit=kn&timezone=auto`;
+  const popup = new maplibregl.Popup({ offset: 10 }).setLngLat(e.lngLat)
+    .setHTML('<div class="poptitle">Consultando…</div>').addTo(map);
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const c = data.current;
+    popup.setHTML(`<div class="poptitle">Viento en este punto</div>
+      Velocidad: ${c.wind_speed_10m} kt<br>
+      Racha: ${c.wind_gusts_10m ?? '–'} kt<br>
+      Dirección: ${c.wind_direction_10m}°<br>
+      Temperatura: ${c.temperature_2m}°C`);
+  } catch (err) {
+    popup.setHTML('<div class="poptitle">Error</div>No se pudo consultar Open-Meteo.');
+  }
+});
+
+// =================================================================
+// EVENTOS DE UI
+// =================================================================
+document.getElementById('toggleParticles').addEventListener('change', (e) => {
+  particlesEnabled = e.target.checked;
+  canvas.style.opacity = particlesEnabled ? '1' : '0';
+  heatCanvas.style.opacity = particlesEnabled ? '1' : '0';
+  if (particlesEnabled) refreshWindField();
+});
+
+document.querySelectorAll('input[name=density]').forEach(r => {
+  r.addEventListener('change', (e) => {
+    currentDensity = e.target.value;
+    document.getElementById('densityLabel').textContent =
+      { low: 'Baja', mid: 'Media', high: 'Alta' }[currentDensity];
+    refreshWindField();
+  });
+});
+
+document.getElementById('particleCount').addEventListener('input', (e) => {
+  particleCount = parseInt(e.target.value, 10);
+  document.getElementById('countLabel').textContent = particleCount;
+  initParticles(particleCount);
+});
+
+document.getElementById('animSpeed').addEventListener('input', (e) => {
+  animSpeedFactor = parseFloat(e.target.value);
+  document.getElementById('speedLabel').textContent = animSpeedFactor.toFixed(1) + '×';
+});
+
+// pausa la animación durante el arrastre/zoom para que las estelas no se
+// queden "pegadas" a la pantalla; se retoma y recarga la rejilla al soltar
+let moveTimer = null;
+map.on('movestart', () => {
+  dragging = true;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  heatCanvas.style.opacity = '0.35';
+});
+map.on('moveend', () => {
+  dragging = false;
+  heatCanvas.style.opacity = '1';
+  clearTimeout(moveTimer);
+  moveTimer = setTimeout(() => { initParticles(particleCount); refreshWindField(); }, 300);
+});
+
+window.addEventListener('resize', () => { resizeCanvas(); drawHeatmap(); });
+
+// =================================================================
+// ARRANQUE
+// =================================================================
+map.on('load', () => {
+  resizeCanvas();
+  initParticles(particleCount);
+  refreshWindField();
+  refreshWaves();
+  loadMeteoBasemap().catch(err => console.error('No se pudo cargar la línea de costa:', err));
+  rafId = requestAnimationFrame(animate);
+});
+
+// refresco periódico completo cada 10 minutos
+setInterval(() => { refreshWindField(); refreshWaves(); }, 10 * 60 * 1000);
+</script>
+</body>
+</html>
