@@ -20,6 +20,8 @@ const WIND_COLOR_STOPS = [
     { kt: 55, rgb: [180, 60, 190] }
 ];
 
+const PROJECTION_TOLERANCE_PX = 2;
+
 function toUV(speedKt, directionDegrees) {
     const radians = directionDegrees * Math.PI / 180;
     const speedMs = speedKt * 0.514444;
@@ -180,15 +182,8 @@ function createCanvasLayer(id, canvas) {
                 }`);
             gl.shaderSource(fragmentShader, `precision mediump float;
                 uniform sampler2D u_texture;
-                uniform vec2 u_resolution;
-                uniform bool u_globe;
                 varying vec2 v_texcoord;
                 void main() {
-                    if (u_globe) {
-                        vec2 center = u_resolution * 0.5;
-                        float radius = min(u_resolution.x, u_resolution.y) * 0.5;
-                        if (distance(gl_FragCoord.xy, center) > radius) discard;
-                    }
                     gl_FragColor = texture2D(u_texture, v_texcoord);
                 }`);
             gl.compileShader(vertexShader);
@@ -223,9 +218,6 @@ function createCanvasLayer(id, canvas) {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
             gl.uniform1i(gl.getUniformLocation(this.program, "u_texture"), 0);
-            const rect = this.map.getContainer().getBoundingClientRect();
-            gl.uniform2f(gl.getUniformLocation(this.program, "u_resolution"), rect.width, rect.height);
-            gl.uniform1i(gl.getUniformLocation(this.program, "u_globe"), this.map.getProjection().type === "globe" ? 1 : 0);
             gl.enable(gl.BLEND);
             gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -339,6 +331,24 @@ export function initWindLayers(MAPA) {
         particles = Array.from({ length: count }, spawnParticle);
     }
 
+    function isOccluded(lngLat) {
+        const transform = MAPA.transform;
+        if (!transform || typeof transform.isLocationOccluded !== "function") return false;
+        try {
+            return transform.isLocationOccluded(lngLat);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // A screen pixel lies on the sphere only if unprojecting then reprojecting
+    // returns to it. Off-globe space and the horizon fail this round trip.
+    function isPixelOnGlobe(screenX, screenY, lngLat) {
+        const projected = MAPA.project(lngLat);
+        if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return false;
+        return Math.hypot(projected.x - screenX, projected.y - screenY) <= PROJECTION_TOLERANCE_PX;
+    }
+
     function drawHeatmap() {
         if (!windField.ready) return;
         const rect = MAPA.getContainer().getBoundingClientRect();
@@ -350,9 +360,13 @@ export function initWindLayers(MAPA) {
 
         for (let y = 0; y < height; y += 1) {
             for (let x = 0; x < width; x += 1) {
-                const point = MAPA.unproject([x / width * rect.width, y / height * rect.height]);
-                const vector = windField.vectorAt(point.lng, point.lat);
+                const screenX = x / width * rect.width;
+                const screenY = y / height * rect.height;
+                const point = MAPA.unproject([screenX, screenY]);
                 const pixel = (y * width + x) * 4;
+                if (!isPixelOnGlobe(screenX, screenY, point)) continue;
+                if (isOccluded(point)) continue;
+                const vector = windField.vectorAt(point.lng, point.lat);
                 if (!vector) continue;
                 const color = colorForWind(vector.speedKt, 1).match(/[\d.]+/g).map(Number);
                 image.data[pixel] = color[0];
@@ -413,8 +427,11 @@ export function initWindLayers(MAPA) {
 
         particles.forEach(particle => {
             if (!particle.previous) return;
-            const start = MAPA.project([particle.previous.longitude, particle.previous.latitude]);
-            const end = MAPA.project([particle.longitude, particle.latitude]);
+            const previousLngLat = { lng: particle.previous.longitude, lat: particle.previous.latitude };
+            const currentLngLat = { lng: particle.longitude, lat: particle.latitude };
+            if (isOccluded(previousLngLat) || isOccluded(currentLngLat)) return;
+            const start = MAPA.project([previousLngLat.lng, previousLngLat.lat]);
+            const end = MAPA.project([currentLngLat.lng, currentLngLat.lat]);
             if (!Number.isFinite(start.x) || !Number.isFinite(start.y) ||
                 !Number.isFinite(end.x) || !Number.isFinite(end.y)) return;
             if (Math.hypot(end.x - start.x, end.y - start.y) > maxSegmentPixels) return;
