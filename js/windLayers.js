@@ -7,6 +7,7 @@ const DENSITIES = {
     mid: DEFAULT_DENSITY,
     high: { cols: 16, rows: 11 }
 };
+const MAX_GRID_LATITUDE = 85;
 
 const WIND_COLOR_STOPS = [
     { kt: 0, rgb: [20, 40, 70] },
@@ -63,8 +64,8 @@ class WindField {
         const padLatitude = (northeast.lat - southwest.lat) * 0.2;
         const minLongitude = southwest.lng - padLongitude;
         const maxLongitude = northeast.lng + padLongitude;
-        const minLatitude = Math.max(-85, southwest.lat - padLatitude);
-        const maxLatitude = Math.min(85, northeast.lat + padLatitude);
+        const minLatitude = Math.max(-MAX_GRID_LATITUDE, southwest.lat - padLatitude);
+        const maxLatitude = Math.min(MAX_GRID_LATITUDE, northeast.lat + padLatitude);
         const latitudes = [];
         const longitudes = [];
 
@@ -330,7 +331,7 @@ export function initWindLayers(MAPA) {
 
     function spawnParticle() {
         const point = randomPoint();
-        return { ...point, age: Math.random() * 60, maxAge: 40 + Math.random() * 60 };
+        return { ...point, previous: null, age: Math.random() * 60, maxAge: 40 + Math.random() * 60 };
     }
 
     function resetParticles() {
@@ -375,14 +376,23 @@ export function initWindLayers(MAPA) {
                 Object.assign(particle, spawnParticle());
                 return;
             }
-            const metersPerLongitude = 111320 * Math.cos(particle.latitude * Math.PI / 180);
+            const clampedLatitude = Math.min(Math.abs(particle.latitude), MAX_GRID_LATITUDE);
+            const metersPerLongitude = 111320 * Math.cos(clampedLatitude * Math.PI / 180);
             particle.previous = { longitude: particle.longitude, latitude: particle.latitude };
-            particle.longitude += vector.u * delta / Math.max(metersPerLongitude, 1);
+            particle.longitude += vector.u * delta / metersPerLongitude;
             particle.latitude += vector.v * delta / 111320;
             particle.age += 1;
             particle.speedKt = vector.speedKt;
-            if (particle.age > particle.maxAge) Object.assign(particle, spawnParticle(), { previous: null });
+            if (particle.age > particle.maxAge) Object.assign(particle, spawnParticle());
         });
+    }
+
+    // Mercator world width in CSS pixels; used to size the antimeridian guard.
+    function worldWidthPixels() {
+        const west = MAPA.project([-180, 0]);
+        const east = MAPA.project([180, 0]);
+        const width = Math.abs(east.x - west.x);
+        return Number.isFinite(width) ? width : 0;
     }
 
     function drawParticles() {
@@ -393,23 +403,21 @@ export function initWindLayers(MAPA) {
         particleContext.globalCompositeOperation = "source-over";
         particleContext.lineWidth = 1.3;
         particleContext.lineCap = "round";
+
+        // Half a world catches antimeridian wrap without rejecting fast particles when
+        // zoomed in. The viewport term keeps the guard sane if the world width degenerates.
+        const maxSegmentPixels = Math.max(
+            worldWidthPixels() * 0.5,
+            Math.min(rect.width, rect.height) * 0.25
+        );
+
         particles.forEach(particle => {
             if (!particle.previous) return;
             const start = MAPA.project([particle.previous.longitude, particle.previous.latitude]);
             const end = MAPA.project([particle.longitude, particle.latitude]);
-            const width = MAPA.getContainer().clientWidth;
-            const height = MAPA.getContainer().clientHeight;
-            const globeMode = MAPA.getProjection().type === "globe";
-            const globeRadius = Math.min(width, height) * 0.5;
-            const centerX = width * 0.5;
-            const centerY = height * 0.5;
-            const startInsideGlobe = !globeMode || Math.hypot(start.x - centerX, start.y - centerY) <= globeRadius;
-            const endInsideGlobe = !globeMode || Math.hypot(end.x - centerX, end.y - centerY) <= globeRadius;
             if (!Number.isFinite(start.x) || !Number.isFinite(start.y) ||
-                !Number.isFinite(end.x) || !Number.isFinite(end.y) ||
-                !startInsideGlobe || !endInsideGlobe ||
-                Math.abs(end.x - start.x) > width * 0.5 ||
-                Math.abs(end.y - start.y) > height * 0.5) return;
+                !Number.isFinite(end.x) || !Number.isFinite(end.y)) return;
+            if (Math.hypot(end.x - start.x, end.y - start.y) > maxSegmentPixels) return;
             const alpha = Math.min(0.35 + (particle.speedKt || 0) / 60, 0.85);
             particleContext.strokeStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
             particleContext.beginPath();
