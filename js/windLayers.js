@@ -22,6 +22,9 @@ const WIND_COLOR_STOPS = [
 
 const PROJECTION_TOLERANCE_PX = 2;
 
+const VESSEL_LAYERS = new Set(["ODB", "SDG", "HES"]);
+const VESSEL_CLICK_RADIUS_PX = 15;
+
 function toUV(speedKt, directionDegrees) {
     const radians = directionDegrees * Math.PI / 180;
     const speedMs = speedKt * 0.514444;
@@ -491,7 +494,18 @@ export function initWindLayers(MAPA) {
             "gdctracks", "hestracks", "sdgtracks", "odbtracks", "WCP", "DRE", "CTD", "COR"
         ]);
         const features = MAPA.queryRenderedFeatures(event.point);
-        if (features.some(feature => interactiveLayers.has(feature.layer?.id))) return;
+        const blocked = features.some(feature => {
+            const layerId = feature.layer?.id;
+            if (!interactiveLayers.has(layerId)) return false;
+            if (!VESSEL_LAYERS.has(layerId)) return true;
+            // Vessel icons keep transparent padding, so MapLibre's symbol hit box is
+            // wider than the drawn ship. Fall back to real pixel distance for those.
+            const coordinates = feature.geometry?.coordinates;
+            if (!Array.isArray(coordinates) || coordinates.length < 2) return true;
+            const projected = MAPA.project(coordinates);
+            return Math.hypot(projected.x - event.point.x, projected.y - event.point.y) <= VESSEL_CLICK_RADIUS_PX;
+        });
+        if (blocked) return;
 
         activePopup?.remove();
         activePopup = new maplibregl.Popup({ offset: 10, closeOnClick: false })
