@@ -132,11 +132,11 @@ MAPA.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-ri
 
 function createBoatImage(color) {
     const ICONO_VESSEL = document.createElement('canvas');
-    ICONO_VESSEL.width = 150;
-    ICONO_VESSEL.height = 150;
+    ICONO_VESSEL.width = 64;
+    ICONO_VESSEL.height = 64;
     const ctx = ICONO_VESSEL.getContext('2d');
-    const ORIGIN_X = 66,
-        ORIGIN_Y = 85,
+    const ORIGIN_X = 23,
+        ORIGIN_Y = 42,
         SCALE_X = 0.18,
         SCALE_Y = 0.18;
 

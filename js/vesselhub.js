@@ -18,16 +18,20 @@ function openTab(evt, tabName) {
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
 }
-$('#tool-btn').on('click', () => { $('#layers-panel').hide(); $('#search-panel').hide(); $('#add-panel').hide(); $('#captura-panel').hide(); $('#malla-panel').hide(); $('#tool-panel').toggle(); });
-$('#layers-btn').on('click', () => { $('#tool-panel').hide(); $('#search-panel').hide(); $('#add-panel').hide(); $('#captura-panel').hide(); $('#malla-panel').hide(); $('#layers-panel').toggle(); });
-$('#search-btn').on('click', () => { $('#tool-panel').hide(); $('#layers-panel').hide(); $('#add-panel').hide(); $('#captura-panel').hide(); $('#malla-panel').hide(); $('#search-panel').toggle(); });
-$('#add-btn').on('click', () => { $('#tool-panel').hide(); $('#layers-panel').hide(); $('#search-panel').hide(); $('#captura-panel').hide(); $('#malla-panel').hide(); $('#add-panel').toggle(); });
-$('#captura-btn').on('click', () => {
-    // Agrupamos todos los paneles a ocultar en un solo selector
-    $('#tool-panel, #layers-panel, #search-panel, #add-panel, #malla-panel').hide();
+const PANEL_IDS = ['#tool-panel', '#layers-panel', '#search-panel', '#add-panel', '#captura-panel', '#malla-panel', '#wind-panel'];
 
-    // Alternamos el panel de captura
-    $('#captura-panel').toggle();
+function togglePanel(panelId) {
+    PANEL_IDS.filter(id => id !== panelId).forEach(id => $(id).hide());
+    $(panelId).toggle();
+}
+
+$('#tool-btn').on('click', () => togglePanel('#tool-panel'));
+$('#layers-btn').on('click', () => togglePanel('#layers-panel'));
+$('#search-btn').on('click', () => togglePanel('#search-panel'));
+$('#add-btn').on('click', () => togglePanel('#add-panel'));
+$('#wind-btn').on('click', () => togglePanel('#wind-panel'));
+$('#captura-btn').on('click', () => {
+    togglePanel('#captura-panel');
 
     // Llamamos a la función de descarga pasando tu instancia de MapLibre (ej. MAPA)
     // Nota: Asegúrate de que la variable 'MAPA' sea accesible en este punto.

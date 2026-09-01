@@ -1,23 +1,13 @@
 const WIND_API_URL = "https://api.open-meteo.com/v1/forecast";
 const WIND_MODEL = "ecmwf_ifs025";
 const WIND_MODEL_LABEL = "ECMWF IFS 0.25°";
-
-function normalizeLongitude(longitude) {
-    return ((longitude + 180) % 360 + 360) % 360 - 180;
-}
-
-function unwrapLongitude(longitude, reference) {
-    let value = normalizeLongitude(longitude);
-    while (value - reference > 180) value -= 360;
-    while (value - reference < -180) value += 360;
-    return value;
-}
 const DEFAULT_DENSITY = { cols: 12, rows: 8 };
 const DENSITIES = {
     low: { cols: 8, rows: 6 },
     mid: DEFAULT_DENSITY,
     high: { cols: 16, rows: 11 }
 };
+const MAX_GRID_LATITUDE = 85;
 
 const WIND_COLOR_STOPS = [
     { kt: 0, rgb: [20, 40, 70] },
@@ -29,6 +19,13 @@ const WIND_COLOR_STOPS = [
     { kt: 42, rgb: [220, 60, 60] },
     { kt: 55, rgb: [180, 60, 190] }
 ];
+
+const PROJECTION_TOLERANCE_PX = 2;
+
+const VESSEL_LAYERS = new Set(["ODB", "SDG", "HES"]);
+const VESSEL_CLICK_RADIUS_PX = 15;
+
+const MIN_REFRESH_INTERVAL_MS = 3500;
 
 function toUV(speedKt, directionDegrees) {
     const radians = directionDegrees * Math.PI / 180;
@@ -58,6 +55,10 @@ function colorForWind(speedKt, alpha) {
     return `rgba(${channels[0]},${channels[1]},${channels[2]},${alpha})`;
 }
 
+function normalizeLongitude(longitude) {
+    return ((longitude + 180) % 360 + 360) % 360 - 180;
+}
+
 class WindField {
     constructor() {
         this.ready = false;
@@ -73,8 +74,8 @@ class WindField {
         const minLongitude = isGlobe ? referenceLongitude - 90 : southwest.lng - longitudeSpan * 0.2;
         const maxLongitude = isGlobe ? referenceLongitude + 90 : southwest.lng + longitudeSpan * 1.2;
         const padLatitude = (northeast.lat - southwest.lat) * 0.2;
-        const minLatitude = Math.max(-85, southwest.lat - padLatitude);
-        const maxLatitude = Math.min(85, northeast.lat + padLatitude);
+        const minLatitude = Math.max(-MAX_GRID_LATITUDE, southwest.lat - padLatitude);
+        const maxLatitude = Math.min(MAX_GRID_LATITUDE, northeast.lat + padLatitude);
         const latitudes = [];
         const longitudes = [];
 
@@ -82,7 +83,7 @@ class WindField {
             for (let column = 0; column < cols; column += 1) {
                 const longitudeRatio = column / (cols - 1);
                 const latitudeRatio = row / (rows - 1);
-                longitudes.push(minLongitude + longitudeSpan * longitudeRatio);
+                longitudes.push(minLongitude + (maxLongitude - minLongitude) * longitudeRatio);
                 latitudes.push(minLatitude + (maxLatitude - minLatitude) * latitudeRatio);
             }
         }
@@ -132,8 +133,9 @@ class WindField {
 
     vectorAt(longitude, latitude) {
         if (!this.ready) return null;
-        const adjustedLongitude = unwrapLongitude(longitude, this.minLongitude);
-        const x = ((adjustedLongitude - this.minLongitude) / (this.maxLongitude - this.minLongitude)) * (this.cols - 1);
+        while (longitude < this.minLongitude && longitude + 360 <= this.maxLongitude) longitude += 360;
+        while (longitude > this.maxLongitude && longitude - 360 >= this.minLongitude) longitude -= 360;
+        const x = ((longitude - this.minLongitude) / (this.maxLongitude - this.minLongitude)) * (this.cols - 1);
         const y = ((latitude - this.minLatitude) / (this.maxLatitude - this.minLatitude)) * (this.rows - 1);
         if (x < 0 || x > this.cols - 1 || y < 0 || y > this.rows - 1) return null;
 
@@ -189,7 +191,9 @@ function createCanvasLayer(id, canvas) {
             gl.shaderSource(fragmentShader, `precision mediump float;
                 uniform sampler2D u_texture;
                 varying vec2 v_texcoord;
-                void main() { gl_FragColor = texture2D(u_texture, v_texcoord); }`);
+                void main() {
+                    gl_FragColor = texture2D(u_texture, v_texcoord);
+                }`);
             gl.compileShader(vertexShader);
             gl.compileShader(fragmentShader);
             gl.attachShader(this.program, vertexShader);
@@ -298,6 +302,7 @@ export function initWindLayers(MAPA) {
     let lastFrame = performance.now();
     let activePopup;
     let weatherLayersAdded = false;
+    let lastProjectionType = MAPA.getProjection().type;
     let refreshInFlight = false;
     let lastRefreshAt = 0;
     let retryAfter = 0;
@@ -336,64 +341,7 @@ export function initWindLayers(MAPA) {
         particleContext.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     }
 
-    function getGlobeMask() {
-        if (MAPA.getProjection()?.type !== "globe") return null;
-        const center = MAPA.getCenter();
-        const points = [];
-        for (let bearing = 0; bearing < 360; bearing += 5) {
-            const radians = bearing * Math.PI / 180;
-            const centerLatitude = center.lat * Math.PI / 180;
-            const latitude = Math.asin(Math.cos(centerLatitude) * Math.cos(radians)) * 180 / Math.PI;
-            const longitude = center.lng + Math.atan2(
-                Math.sin(radians) * Math.cos(centerLatitude),
-                -Math.sin(centerLatitude) * Math.sin(latitude * Math.PI / 180)
-            ) * 180 / Math.PI;
-            const point = MAPA.project([longitude, latitude]);
-            if (Number.isFinite(point.x) && Number.isFinite(point.y)) points.push(point);
-        }
-        return points.length >= 3 ? points : null;
-    }
-
-    function isInsideMask(x, y, mask) {
-        if (!mask) return true;
-        let inside = false;
-        for (let index = 0, previous = mask.length - 1; index < mask.length; previous = index++) {
-            const currentPoint = mask[index];
-            const previousPoint = mask[previous];
-            const intersects = ((currentPoint.y > y) !== (previousPoint.y > y)) &&
-                (x < (previousPoint.x - currentPoint.x) * (y - currentPoint.y) /
-                    (previousPoint.y - currentPoint.y) + currentPoint.x);
-            if (intersects) inside = !inside;
-        }
-        return inside;
-    }
-
-    function clipToMask(context, mask) {
-        if (!mask) return;
-        context.beginPath();
-        context.moveTo(mask[0].x, mask[0].y);
-        mask.slice(1).forEach(point => context.lineTo(point.x, point.y));
-        context.closePath();
-        context.clip();
-    }
-
     function randomPoint() {
-        const mask = getGlobeMask();
-        if (mask) {
-            const rect = MAPA.getContainer().getBoundingClientRect();
-            const minX = Math.min(...mask.map(point => point.x));
-            const maxX = Math.max(...mask.map(point => point.x));
-            const minY = Math.min(...mask.map(point => point.y));
-            const maxY = Math.max(...mask.map(point => point.y));
-            for (let attempt = 0; attempt < 20; attempt += 1) {
-                const x = minX + Math.random() * (maxX - minX);
-                const y = minY + Math.random() * (maxY - minY);
-                if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height && isInsideMask(x, y, mask)) {
-                    const point = MAPA.unproject([x, y]);
-                    return { longitude: point.lng, latitude: point.lat };
-                }
-            }
-        }
         const bounds = MAPA.getBounds();
         const southwest = bounds.getSouthWest();
         const northeast = bounds.getNorthEast();
@@ -405,12 +353,49 @@ export function initWindLayers(MAPA) {
 
     function spawnParticle() {
         const point = randomPoint();
-        return { ...point, age: Math.random() * 60, maxAge: 40 + Math.random() * 60 };
+        return { ...point, previous: null, age: Math.random() * 60, maxAge: 40 + Math.random() * 60 };
     }
 
     function resetParticles() {
         const count = Number(document.getElementById("wind-particle-count")?.value || 800);
         particles = Array.from({ length: count }, spawnParticle);
+    }
+
+    function isOccluded(lngLat) {
+        const transform = MAPA.transform;
+        if (!transform || typeof transform.isLocationOccluded !== "function") return false;
+        try {
+            return transform.isLocationOccluded(lngLat);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // A screen pixel lies on the sphere only if unprojecting then reprojecting
+    // returns to it. Off-globe space and the horizon fail this round trip.
+    function isPixelOnGlobe(screenX, screenY, lngLat) {
+        const projected = MAPA.project(lngLat);
+        if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return false;
+        return Math.hypot(projected.x - screenX, projected.y - screenY) <= PROJECTION_TOLERANCE_PX;
+    }
+
+    // Drops any texel with an off-globe/occluded neighbor, pulling the painted region
+    // one texel inward so the upscaled edge stays safely inside the true globe silhouette
+    // instead of ending exactly on it.
+    function erodeMask(mask, width, height) {
+        const result = new Uint8Array(width * height);
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                const index = y * width + x;
+                if (!mask[index]) continue;
+                const left = x > 0 ? mask[index - 1] : 0;
+                const right = x < width - 1 ? mask[index + 1] : 0;
+                const up = y > 0 ? mask[index - width] : 0;
+                const down = y < height - 1 ? mask[index + width] : 0;
+                result[index] = (left && right && up && down) ? 1 : 0;
+            }
+        }
+        return result;
     }
 
     function drawHeatmap() {
@@ -421,13 +406,31 @@ export function initWindLayers(MAPA) {
         offscreenCanvas.width = width;
         offscreenCanvas.height = height;
         const image = offscreenContext.createImageData(width, height);
+        const isGlobe = MAPA.getProjection().type === "globe";
+
+        const visible = new Uint8Array(width * height);
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                const screenX = x / width * rect.width;
+                const screenY = y / height * rect.height;
+                const point = MAPA.unproject([screenX, screenY]);
+                if (!isPixelOnGlobe(screenX, screenY, point)) continue;
+                if (isOccluded(point)) continue;
+                visible[y * width + x] = 1;
+            }
+        }
+        const paint = isGlobe ? erodeMask(visible, width, height) : visible;
 
         for (let y = 0; y < height; y += 1) {
             for (let x = 0; x < width; x += 1) {
-                const point = MAPA.unproject([x / width * rect.width, y / height * rect.height]);
+                const index = y * width + x;
+                if (!paint[index]) continue;
+                const screenX = x / width * rect.width;
+                const screenY = y / height * rect.height;
+                const point = MAPA.unproject([screenX, screenY]);
                 const vector = windField.vectorAt(point.lng, point.lat);
-                const pixel = (y * width + x) * 4;
                 if (!vector) continue;
+                const pixel = index * 4;
                 const color = colorForWind(vector.speedKt, 1).match(/[\d.]+/g).map(Number);
                 image.data[pixel] = color[0];
                 image.data[pixel + 1] = color[1];
@@ -436,12 +439,13 @@ export function initWindLayers(MAPA) {
             }
         }
         offscreenContext.putImageData(image, 0, 0);
-        const globeMask = getGlobeMask();
         heatContext.clearRect(0, 0, rect.width, rect.height);
-        heatContext.save();
-        clipToMask(heatContext, globeMask);
+        // The offscreen canvas is intentionally low-res (140px) for performance, so its
+        // per-texel globe-edge cutoff scales up into a visible staircase of squares.
+        // The erosion above pulls the edge inward; the blur then softens what's left.
+        heatContext.filter = isGlobe ? "blur(4px)" : "none";
         heatContext.drawImage(offscreenCanvas, 0, 0, width, height, 0, 0, rect.width, rect.height);
-        heatContext.restore();
+        heatContext.filter = "none";
         MAPA.triggerRepaint();
     }
 
@@ -454,14 +458,23 @@ export function initWindLayers(MAPA) {
                 Object.assign(particle, spawnParticle());
                 return;
             }
-            const metersPerLongitude = 111320 * Math.cos(particle.latitude * Math.PI / 180);
+            const clampedLatitude = Math.min(Math.abs(particle.latitude), MAX_GRID_LATITUDE);
+            const metersPerLongitude = 111320 * Math.cos(clampedLatitude * Math.PI / 180);
             particle.previous = { longitude: particle.longitude, latitude: particle.latitude };
-            particle.longitude += vector.u * delta / Math.max(metersPerLongitude, 1);
+            particle.longitude += vector.u * delta / metersPerLongitude;
             particle.latitude += vector.v * delta / 111320;
             particle.age += 1;
             particle.speedKt = vector.speedKt;
-            if (particle.age > particle.maxAge) Object.assign(particle, spawnParticle(), { previous: null });
+            if (particle.age > particle.maxAge) Object.assign(particle, spawnParticle());
         });
+    }
+
+    // Mercator world width in CSS pixels; used to size the antimeridian guard.
+    function worldWidthPixels() {
+        const west = MAPA.project([-180, 0]);
+        const east = MAPA.project([180, 0]);
+        const width = Math.abs(east.x - west.x);
+        return Number.isFinite(width) ? width : 0;
     }
 
     function drawParticles() {
@@ -470,15 +483,26 @@ export function initWindLayers(MAPA) {
         particleContext.fillStyle = "rgba(0,0,0,0.06)";
         particleContext.fillRect(0, 0, rect.width, rect.height);
         particleContext.globalCompositeOperation = "source-over";
-        const globeMask = getGlobeMask();
-        particleContext.save();
-        clipToMask(particleContext, globeMask);
         particleContext.lineWidth = 1.3;
         particleContext.lineCap = "round";
+
+        // Half a world catches antimeridian wrap without rejecting fast particles when
+        // zoomed in. The viewport term keeps the guard sane if the world width degenerates.
+        const maxSegmentPixels = Math.max(
+            worldWidthPixels() * 0.5,
+            Math.min(rect.width, rect.height) * 0.25
+        );
+
         particles.forEach(particle => {
             if (!particle.previous) return;
-            const start = MAPA.project([particle.previous.longitude, particle.previous.latitude]);
-            const end = MAPA.project([particle.longitude, particle.latitude]);
+            const previousLngLat = { lng: particle.previous.longitude, lat: particle.previous.latitude };
+            const currentLngLat = { lng: particle.longitude, lat: particle.latitude };
+            if (isOccluded(previousLngLat) || isOccluded(currentLngLat)) return;
+            const start = MAPA.project([previousLngLat.lng, previousLngLat.lat]);
+            const end = MAPA.project([currentLngLat.lng, currentLngLat.lat]);
+            if (!Number.isFinite(start.x) || !Number.isFinite(start.y) ||
+                !Number.isFinite(end.x) || !Number.isFinite(end.y)) return;
+            if (Math.hypot(end.x - start.x, end.y - start.y) > maxSegmentPixels) return;
             const alpha = Math.min(0.35 + (particle.speedKt || 0) / 60, 0.85);
             particleContext.strokeStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
             particleContext.beginPath();
@@ -486,11 +510,19 @@ export function initWindLayers(MAPA) {
             particleContext.lineTo(end.x, end.y);
             particleContext.stroke();
         });
-        particleContext.restore();
         MAPA.triggerRepaint();
     }
 
     function animate(now) {
+        const projectionType = MAPA.getProjection().type;
+        if (projectionType !== lastProjectionType) {
+            lastProjectionType = projectionType;
+            particleContext.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            if (enabled) {
+                resetParticles();
+                scheduleRefresh();
+            }
+        }
         if (enabled && !moving && windField.ready) {
             const delta = Math.min(now - lastFrame, 50);
             stepParticles(delta);
@@ -504,6 +536,10 @@ export function initWindLayers(MAPA) {
         if (!enabled) return;
         if (refreshInFlight) return;
         if (Date.now() < retryAfter) return;
+        // Applies even to forced (pan/zoom-triggered) refreshes: several settled gestures
+        // in quick succession would otherwise each fire their own request and trip
+        // Open-Meteo's real rate limit faster than the 60s backoff can recover from.
+        if (Date.now() - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) return;
         if (!force && Date.now() - lastRefreshAt < 15000) return;
         requestController?.abort();
         requestController = new AbortController();
@@ -537,7 +573,7 @@ export function initWindLayers(MAPA) {
 
     function scheduleRefresh() {
         clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(refresh, 300);
+        refreshTimer = setTimeout(() => refresh(true), 300);
     }
 
     async function showPointInfo(event) {
@@ -547,7 +583,18 @@ export function initWindLayers(MAPA) {
             "gdctracks", "hestracks", "sdgtracks", "odbtracks", "WCP", "DRE", "CTD", "COR"
         ]);
         const features = MAPA.queryRenderedFeatures(event.point);
-        if (features.some(feature => interactiveLayers.has(feature.layer?.id))) return;
+        const blocked = features.some(feature => {
+            const layerId = feature.layer?.id;
+            if (!interactiveLayers.has(layerId)) return false;
+            if (!VESSEL_LAYERS.has(layerId)) return true;
+            // Vessel icons keep transparent padding, so MapLibre's symbol hit box is
+            // wider than the drawn ship. Fall back to real pixel distance for those.
+            const coordinates = feature.geometry?.coordinates;
+            if (!Array.isArray(coordinates) || coordinates.length < 2) return true;
+            const projected = MAPA.project(coordinates);
+            return Math.hypot(projected.x - event.point.x, projected.y - event.point.y) <= VESSEL_CLICK_RADIUS_PX;
+        });
+        if (blocked) return;
 
         activePopup?.remove();
         activePopup = new maplibregl.Popup({ offset: 10, closeOnClick: false })

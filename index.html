@@ -130,6 +130,9 @@
     <button id="grid-btn" class="sidebar-btn" title="Show grid"><img src="img/border-all-solid-full.svg"
             class="icono"></button>
 
+    <button id="wind-btn" class="sidebar-btn" title="Wind layer"><img src="img/wind-solid-full.svg"
+            class="icono"></button>
+
 
     <div class="controls" id="layers-panel">
         <h3>Projection</h3>
@@ -250,30 +253,6 @@
         <h3>EXTERNAL LAYERS:</h3>
         <label><input type="checkbox" id="eez-wms"> EEZ (Marine Regions)</label>
         <label><input type="checkbox" id="ihm-wms"> IHM Nautical charts</label>
-
-        <h3>WEATHER LAYERS:</h3>
-        <label>
-            <input type="checkbox" id="wind-layer-toggle">
-            Wind intensity and particles
-        </label>
-        <div class="weather-layer-options">
-            <label>Grid density</label>
-            <label><input type="radio" name="wind-density" value="low"> Low</label>
-            <label><input type="radio" name="wind-density" value="mid" checked> Medium</label>
-            <label><input type="radio" name="wind-density" value="high"> High</label>
-            <label>
-                Particle count
-                <input type="range" id="wind-particle-count" min="150" max="2000" step="50" value="800">
-            </label>
-            <label>
-                Particle speed
-                <input type="range" id="wind-particle-speed" min="0.2" max="3" step="0.1" value="1">
-            </label>
-            <div class="wind-data-status">
-                <div>Model data time: <span id="wind-last-update">Unavailable</span></div>
-                <div>Model: <span id="wind-model">ECMWF IFS 0.25°</span></div>
-            </div>
-        </div>
 
     </div>
 
@@ -445,6 +424,42 @@
         </div>
 
 
+    </div>
+
+    <div class="controls" id="wind-panel">
+        <h3>WEATHER LAYERS</h3>
+        <label>
+            <input type="checkbox" id="wind-layer-toggle">
+            Wind intensity and particles
+        </label>
+        <div class="weather-layer-options">
+            <label>Grid density</label>
+            <label><input type="radio" name="wind-density" value="low"> Low</label>
+            <label><input type="radio" name="wind-density" value="mid" checked> Medium</label>
+            <label><input type="radio" name="wind-density" value="high"> High</label>
+            <label>
+                Particle count
+                <input type="range" id="wind-particle-count" min="150" max="2000" step="50" value="800">
+            </label>
+            <label>
+                Particle speed
+                <input type="range" id="wind-particle-speed" min="0.2" max="3" step="0.1" value="1">
+            </label>
+            <div class="wind-data-status">
+                <div>Model data time: <span id="wind-last-update">Unavailable</span></div>
+                <div>Model: <span id="wind-model">ECMWF IFS 0.25°</span></div>
+            </div>
+            <div class="wind-legend">
+                <div id="wind-layer-legend"></div>
+                <div class="wind-legend-scale">
+                    <span>0</span><span>15</span><span>30</span><span>45+ kt</span>
+                </div>
+            </div>
+            <div class="wind-attribution">
+                Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>
+                (CC BY 4.0) · ECMWF IFS
+            </div>
+        </div>
     </div>
 
     <div id="malla-panel">
