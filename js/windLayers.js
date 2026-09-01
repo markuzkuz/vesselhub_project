@@ -405,7 +405,12 @@ export function initWindLayers(MAPA) {
         }
         offscreenContext.putImageData(image, 0, 0);
         heatContext.clearRect(0, 0, rect.width, rect.height);
+        // The offscreen canvas is intentionally low-res (140px) for performance, so its
+        // per-texel globe-edge cutoff scales up into a visible staircase of squares.
+        // A blur on the upscaled draw smooths that edge without raising texel-test cost.
+        heatContext.filter = MAPA.getProjection().type === "globe" ? "blur(3px)" : "none";
         heatContext.drawImage(offscreenCanvas, 0, 0, width, height, 0, 0, rect.width, rect.height);
+        heatContext.filter = "none";
         MAPA.triggerRepaint();
     }
 
