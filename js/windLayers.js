@@ -25,6 +25,8 @@ const PROJECTION_TOLERANCE_PX = 2;
 const VESSEL_LAYERS = new Set(["ODB", "SDG", "HES"]);
 const VESSEL_CLICK_RADIUS_PX = 15;
 
+const MIN_REFRESH_INTERVAL_MS = 3500;
+
 function toUV(speedKt, directionDegrees) {
     const radians = directionDegrees * Math.PI / 180;
     const speedMs = speedKt * 0.514444;
@@ -534,6 +536,10 @@ export function initWindLayers(MAPA) {
         if (!enabled) return;
         if (refreshInFlight) return;
         if (Date.now() < retryAfter) return;
+        // Applies even to forced (pan/zoom-triggered) refreshes: several settled gestures
+        // in quick succession would otherwise each fire their own request and trip
+        // Open-Meteo's real rate limit faster than the 60s backoff can recover from.
+        if (Date.now() - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) return;
         if (!force && Date.now() - lastRefreshAt < 15000) return;
         requestController?.abort();
         requestController = new AbortController();
