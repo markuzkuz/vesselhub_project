@@ -57,13 +57,6 @@ function normalizeLongitude(longitude) {
     return ((longitude + 180) % 360 + 360) % 360 - 180;
 }
 
-function unwrapLongitude(longitude, reference) {
-    let value = normalizeLongitude(longitude);
-    while (value - reference > 180) value -= 360;
-    while (value - reference < -180) value += 360;
-    return value;
-}
-
 class WindField {
     constructor() {
         this.ready = false;
@@ -138,8 +131,9 @@ class WindField {
 
     vectorAt(longitude, latitude) {
         if (!this.ready) return null;
-        const adjustedLongitude = unwrapLongitude(longitude, this.minLongitude);
-        const x = ((adjustedLongitude - this.minLongitude) / (this.maxLongitude - this.minLongitude)) * (this.cols - 1);
+        while (longitude < this.minLongitude && longitude + 360 <= this.maxLongitude) longitude += 360;
+        while (longitude > this.maxLongitude && longitude - 360 >= this.minLongitude) longitude -= 360;
+        const x = ((longitude - this.minLongitude) / (this.maxLongitude - this.minLongitude)) * (this.cols - 1);
         const y = ((latitude - this.minLatitude) / (this.maxLatitude - this.minLatitude)) * (this.rows - 1);
         if (x < 0 || x > this.cols - 1 || y < 0 || y > this.rows - 1) return null;
 
@@ -535,7 +529,7 @@ export function initWindLayers(MAPA) {
 
     function scheduleRefresh() {
         clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(refresh, 300);
+        refreshTimer = setTimeout(() => refresh(true), 300);
     }
 
     async function showPointInfo(event) {
