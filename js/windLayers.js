@@ -377,6 +377,25 @@ export function initWindLayers(MAPA) {
         return Math.hypot(projected.x - screenX, projected.y - screenY) <= PROJECTION_TOLERANCE_PX;
     }
 
+    // Drops any texel with an off-globe/occluded neighbor, pulling the painted region
+    // one texel inward so the upscaled edge stays safely inside the true globe silhouette
+    // instead of ending exactly on it.
+    function erodeMask(mask, width, height) {
+        const result = new Uint8Array(width * height);
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                const index = y * width + x;
+                if (!mask[index]) continue;
+                const left = x > 0 ? mask[index - 1] : 0;
+                const right = x < width - 1 ? mask[index + 1] : 0;
+                const up = y > 0 ? mask[index - width] : 0;
+                const down = y < height - 1 ? mask[index + width] : 0;
+                result[index] = (left && right && up && down) ? 1 : 0;
+            }
+        }
+        return result;
+    }
+
     function drawHeatmap() {
         if (!windField.ready) return;
         const rect = MAPA.getContainer().getBoundingClientRect();
@@ -385,17 +404,31 @@ export function initWindLayers(MAPA) {
         offscreenCanvas.width = width;
         offscreenCanvas.height = height;
         const image = offscreenContext.createImageData(width, height);
+        const isGlobe = MAPA.getProjection().type === "globe";
 
+        const visible = new Uint8Array(width * height);
         for (let y = 0; y < height; y += 1) {
             for (let x = 0; x < width; x += 1) {
                 const screenX = x / width * rect.width;
                 const screenY = y / height * rect.height;
                 const point = MAPA.unproject([screenX, screenY]);
-                const pixel = (y * width + x) * 4;
                 if (!isPixelOnGlobe(screenX, screenY, point)) continue;
                 if (isOccluded(point)) continue;
+                visible[y * width + x] = 1;
+            }
+        }
+        const paint = isGlobe ? erodeMask(visible, width, height) : visible;
+
+        for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+                const index = y * width + x;
+                if (!paint[index]) continue;
+                const screenX = x / width * rect.width;
+                const screenY = y / height * rect.height;
+                const point = MAPA.unproject([screenX, screenY]);
                 const vector = windField.vectorAt(point.lng, point.lat);
                 if (!vector) continue;
+                const pixel = index * 4;
                 const color = colorForWind(vector.speedKt, 1).match(/[\d.]+/g).map(Number);
                 image.data[pixel] = color[0];
                 image.data[pixel + 1] = color[1];
@@ -407,8 +440,8 @@ export function initWindLayers(MAPA) {
         heatContext.clearRect(0, 0, rect.width, rect.height);
         // The offscreen canvas is intentionally low-res (140px) for performance, so its
         // per-texel globe-edge cutoff scales up into a visible staircase of squares.
-        // A blur on the upscaled draw smooths that edge without raising texel-test cost.
-        heatContext.filter = MAPA.getProjection().type === "globe" ? "blur(3px)" : "none";
+        // The erosion above pulls the edge inward; the blur then softens what's left.
+        heatContext.filter = isGlobe ? "blur(4px)" : "none";
         heatContext.drawImage(offscreenCanvas, 0, 0, width, height, 0, 0, rect.width, rect.height);
         heatContext.filter = "none";
         MAPA.triggerRepaint();
