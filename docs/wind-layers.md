@@ -208,6 +208,14 @@ they are not silently lost before production migration.
   latitude/longitude, which over-concentrates them near the poles in
   Mercator, where a degree of longitude covers much less ground than at the
   equator.
+- **Globe particle spawn is not mask-restricted.** `main`'s pre-branch baseline
+  restricted particle spawn to a CPU-computed polygon approximating the visible
+  globe disk. That mask used the same screen-space-circle approach Task 2 replaced
+  for clipping (verified geometrically incorrect under zoom/pan/pitch), so it was
+  deliberately not restored alongside the rate-limiting/WebGL-state/longitude-clamp
+  fixes in this round. Particles still spawn uniformly over the full lat/lng bounds
+  in globe mode and are discarded post-spawn by `isOccluded`, so roughly half the
+  particle budget is wasted on the occluded hemisphere at any moment.
 
 ## Exact change map
 
@@ -217,7 +225,7 @@ production repository.
 
 | File | Exact changed lines | Change |
 |---|---:|---|
-| `js/windLayers.js` | 1-595 (whole file) | Open-Meteo API client, explicit ECMWF model selection, wind grid, MapLibre custom layers, interpolation, heatmap canvas, particle canvas, point-info popup, model-data-time status, controls, refresh lifecycle, and cleanup. |
+| `js/windLayers.js` | 1-646 (whole file) | Open-Meteo API client, explicit ECMWF model selection, wind grid, MapLibre custom layers, interpolation, heatmap canvas, particle canvas, point-info popup, model-data-time status, controls, refresh lifecycle, and cleanup. |
 | `js/windLayers.js` | 10, 396-397 | `MAX_GRID_LATITUDE = 85` and its use clamping the metres-per-degree-longitude term near the poles (Task 1, commit 0855a12). |
 | `js/windLayers.js` | 329, 387-405 | `spawnParticle()` always returns `previous: null`; `stepParticles()` no longer leaks a stale `previous` on out-of-grid respawn (Task 1). |
 | `js/windLayers.js` | 407-413, 424-429 | `worldWidthPixels()` and the half-world antimeridian segment guard in `drawParticles()`, replacing the old half-viewport (`width * 0.5`) guard (Task 1). |
@@ -236,6 +244,13 @@ production repository.
 | `css/style.css` | 25, 40 | `#wind-btn { top: 350px; }` and `#wind-panel { top: 350px; }` (Task 3). |
 | `css/style.css` | 948-975 | `.weather-layer-options`, `.wind-data-status`, `.wind-legend`, `#wind-layer-legend`, `.wind-legend-scale`, `.wind-attribution` (Task 3). |
 | `docs/wind-layers.md` | this file | Recorded the above once Tasks 1-4 landed and were reviewed (Task 5). |
+| `js/windLayers.js` | 60-65 | `unwrapLongitude(longitude, reference)` — normalizes then unwraps a longitude to the ±180° window nearest a reference, restoring `main`'s antimeridian-safe longitude math (Task 6). |
+| `js/windLayers.js` | 72-83 | `WindField.load` gains a fifth parameter `globeCenter`; restores `main`'s longitude-span clamp and adds a globe-aware ±90° sampling window centred on `globeCenter` when the projection is `globe`, fixing an unclamped span that could exceed 500° across a pole (Task 6). |
+| `js/windLayers.js` | 141-142 | `vectorAt` uses `unwrapLongitude` in place of the old manual ±360° wrap loop, consistent with the restored `load` clamp (Task 6). |
+| `js/windLayers.js` | 310-313, 322-325 | `refreshInFlight`, `lastRefreshAt`, `retryAfter`, `retryTimer` state and `updateStatusMessage(message)`, restoring the Open-Meteo 429 rate-limit plumbing (Task 6). |
+| `js/windLayers.js` | 501-534 | `refresh(force = false)` restores the in-flight guard, the 15s throttle (bypassed by `force`), and the 429 backoff (60s cooldown, visible `#wind-last-update` message, auto-retry) (Task 6). |
+| `js/windLayers.js` | 613 | Density-change handler calls `refresh(true)` so an explicit user action is never swallowed by the new throttle (Task 6). |
+| `js/windLayers.js` | 216-252 | `render(gl)` saves and restores `DEPTH_TEST`/`CULL_FACE`/`BLEND`/depth mask around the custom layer's draw call, preventing state leakage into whatever MapLibre draws next (Task 6). |
 
 Line numbers above were re-derived with `wc -l` and `grep -n` against the
 working tree at the end of Task 4 (commit 80d33db), not carried over from

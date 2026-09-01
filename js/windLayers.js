@@ -57,18 +57,28 @@ function normalizeLongitude(longitude) {
     return ((longitude + 180) % 360 + 360) % 360 - 180;
 }
 
+function unwrapLongitude(longitude, reference) {
+    let value = normalizeLongitude(longitude);
+    while (value - reference > 180) value -= 360;
+    while (value - reference < -180) value += 360;
+    return value;
+}
+
 class WindField {
     constructor() {
         this.ready = false;
     }
 
-    async load(bounds, cols, rows, signal) {
+    async load(bounds, cols, rows, signal, globeCenter) {
         const southwest = bounds.getSouthWest();
         const northeast = bounds.getNorthEast();
-        const padLongitude = (northeast.lng - southwest.lng) * 0.2;
+        const isGlobe = Number.isFinite(globeCenter);
+        const referenceLongitude = isGlobe ? globeCenter : southwest.lng;
+        const rawLongitudeSpan = northeast.lng - southwest.lng;
+        const longitudeSpan = isGlobe ? 180 : Math.min(Math.abs(rawLongitudeSpan), 360);
+        const minLongitude = isGlobe ? referenceLongitude - 90 : southwest.lng - longitudeSpan * 0.2;
+        const maxLongitude = isGlobe ? referenceLongitude + 90 : southwest.lng + longitudeSpan * 1.2;
         const padLatitude = (northeast.lat - southwest.lat) * 0.2;
-        const minLongitude = southwest.lng - padLongitude;
-        const maxLongitude = northeast.lng + padLongitude;
         const minLatitude = Math.max(-MAX_GRID_LATITUDE, southwest.lat - padLatitude);
         const maxLatitude = Math.min(MAX_GRID_LATITUDE, northeast.lat + padLatitude);
         const latitudes = [];
@@ -128,9 +138,8 @@ class WindField {
 
     vectorAt(longitude, latitude) {
         if (!this.ready) return null;
-        while (longitude < this.minLongitude && longitude + 360 <= this.maxLongitude) longitude += 360;
-        while (longitude > this.maxLongitude && longitude - 360 >= this.minLongitude) longitude -= 360;
-        const x = ((longitude - this.minLongitude) / (this.maxLongitude - this.minLongitude)) * (this.cols - 1);
+        const adjustedLongitude = unwrapLongitude(longitude, this.minLongitude);
+        const x = ((adjustedLongitude - this.minLongitude) / (this.maxLongitude - this.minLongitude)) * (this.cols - 1);
         const y = ((latitude - this.minLatitude) / (this.maxLatitude - this.minLatitude)) * (this.rows - 1);
         if (x < 0 || x > this.cols - 1 || y < 0 || y > this.rows - 1) return null;
 
@@ -206,6 +215,13 @@ function createCanvasLayer(id, canvas) {
         },
         render(gl) {
             if (!canvas.width || !canvas.height) return;
+            const previousDepthTest = gl.isEnabled(gl.DEPTH_TEST);
+            const previousCullFace = gl.isEnabled(gl.CULL_FACE);
+            const previousBlend = gl.isEnabled(gl.BLEND);
+            const previousDepthMask = gl.getParameter(gl.DEPTH_WRITEMASK);
+            gl.disable(gl.DEPTH_TEST);
+            gl.disable(gl.CULL_FACE);
+            gl.depthMask(false);
             gl.useProgram(this.program);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.position);
             const position = gl.getAttribLocation(this.program, "a_position");
@@ -219,6 +235,8 @@ function createCanvasLayer(id, canvas) {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
             gl.uniform1i(gl.getUniformLocation(this.program, "u_texture"), 0);
             gl.enable(gl.BLEND);
@@ -226,6 +244,10 @@ function createCanvasLayer(id, canvas) {
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             gl.disableVertexAttribArray(position);
             gl.disableVertexAttribArray(texcoord);
+            gl.depthMask(previousDepthMask);
+            if (previousDepthTest) gl.enable(gl.DEPTH_TEST);
+            if (previousCullFace) gl.enable(gl.CULL_FACE);
+            if (!previousBlend) gl.disable(gl.BLEND);
             this.map.triggerRepaint();
         }
     };
@@ -285,12 +307,21 @@ export function initWindLayers(MAPA) {
     let activePopup;
     let weatherLayersAdded = false;
     let lastProjectionType = MAPA.getProjection().type;
+    let refreshInFlight = false;
+    let lastRefreshAt = 0;
+    let retryAfter = 0;
+    let retryTimer;
 
     function updateStatus() {
         const updateElement = document.getElementById("wind-last-update");
         const modelElement = document.getElementById("wind-model");
         if (updateElement) updateElement.textContent = formatModelTime(windField.dataTime);
         if (modelElement) modelElement.textContent = WIND_MODEL_LABEL;
+    }
+
+    function updateStatusMessage(message) {
+        const updateElement = document.getElementById("wind-last-update");
+        if (updateElement) updateElement.textContent = message;
     }
 
     function addWeatherLayersToMap() {
@@ -467,18 +498,38 @@ export function initWindLayers(MAPA) {
         animationFrame = requestAnimationFrame(animate);
     }
 
-    async function refresh() {
+    async function refresh(force = false) {
         if (!enabled) return;
+        if (refreshInFlight) return;
+        if (Date.now() < retryAfter) return;
+        if (!force && Date.now() - lastRefreshAt < 15000) return;
         requestController?.abort();
         requestController = new AbortController();
         const selectedDensity = DENSITIES[density];
+        refreshInFlight = true;
         try {
-            await windField.load(MAPA.getBounds(), selectedDensity.cols, selectedDensity.rows, requestController.signal);
+            const projection = MAPA.getProjection();
+            const globeCenter = projection?.type === "globe" ? MAPA.getCenter().lng : null;
+            await windField.load(MAPA.getBounds(), selectedDensity.cols, selectedDensity.rows, requestController.signal, globeCenter);
             resetParticles();
             drawHeatmap();
             updateStatus();
+            lastRefreshAt = Date.now();
+            retryAfter = 0;
         } catch (error) {
-            if (error.name !== "AbortError") console.error("Wind layer refresh failed:", error);
+            if (error.name === "AbortError") return;
+            if (error.message.includes("HTTP 429")) {
+                retryAfter = Date.now() + 60000;
+                updateStatusMessage("Rate limited; retrying in 1 min");
+                clearTimeout(retryTimer);
+                retryTimer = setTimeout(() => {
+                    if (enabled) refresh();
+                }, 60000);
+                console.warn("Wind layer rate limited by Open-Meteo; retrying after the cooldown.");
+            }
+            else console.error("Wind layer refresh failed:", error);
+        } finally {
+            refreshInFlight = false;
         }
     }
 
@@ -559,7 +610,7 @@ export function initWindLayers(MAPA) {
     document.querySelectorAll("input[name='wind-density']").forEach(input => {
         input.addEventListener("change", event => {
             density = event.target.value;
-            if (enabled) refresh();
+            if (enabled) refresh(true);
         });
     });
     document.getElementById("wind-particle-count")?.addEventListener("input", resetParticles);
