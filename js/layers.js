@@ -1,4 +1,5 @@
 import { openCruiseDataPanel } from "./cruiseCharts.js";
+import { openWcpProfileFromFeature } from "./wcpProfileCharts.js";
 import { initWindLayers } from "./windLayers.js";
 
 const CRUISE_LAYER_IDS = new Set(["sdgcruises", "odbcruises", "hescruises", "gdccruises"]);
@@ -8,6 +9,12 @@ const wcp = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1
 const dre = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ADRE&outputFormat=application%2Fjson"
 const ctd = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ACTD&outputFormat=application%2Fjson"
 const cor = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ACOR&outputFormat=application%2Fjson"
+const net = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ANET&outputFormat=application%2Fjson"
+const moc = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3AMOC&outputFormat=application%2Fjson"
+const obs = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3AOBS&outputFormat=application%2Fjson"
+const rov = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3AROV&outputFormat=application%2Fjson"
+const sei = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ASEI&outputFormat=application%2Fjson"
+
 
 const sdgcruises = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ACSR_simp&outputFormat=application%2Fjson&cql_filter=vessel=%27SARMIENTO%20DE%20GAMBOA%27";
 const odbcruises = "https://datahub.utm.csic.es/geoserver/utm/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=utm%3ACSR_simp&outputFormat=application%2Fjson&cql_filter=vessel=%27OD%C3%93N%20DE%20BUEN%27";
@@ -131,7 +138,22 @@ function addWFSLayers(MAPA) {
                 });
             }
         });
-
+        if (!MAPA.getSource("SEI")) {
+            MAPA.addSource("SEI", { type: "geojson", data: sei });
+            MAPA.addLayer({
+                id: "SEI", type: "line", source: "SEI",
+                paint: {
+                    "line-width": [
+                        "case",
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cruise_id"], targetId]],
+                        6,2
+                    ],
+                    "line-color": "#000000",
+                    "line-dasharray": [2, 2]   
+                }
+                
+            });
+        }
         if (!MAPA.getSource("WCP")) {
             MAPA.addSource("WCP", { type: "geojson", data: wcp });
             MAPA.addLayer({
@@ -244,6 +266,119 @@ function addWFSLayers(MAPA) {
                 }
             });
         }
+ if (!MAPA.getSource("NET")) {
+            MAPA.addSource("NET", { type: "geojson", data: net });
+            MAPA.addLayer({
+                id: "NET", type: "circle", source: "NET",
+                paint: {
+                    "circle-radius": [
+                        "case",
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]],
+                        5, 3
+                    ],
+                    "circle-color": "#057e1f",
+                    "circle-stroke-width": 0.5,
+                    "circle-stroke-color": "#fff",
+                    "circle-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ],
+                    "circle-stroke-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ]
+                }
+            });
+        }
+        if (!MAPA.getSource("MOC")) {
+            MAPA.addSource("MOC", { type: "geojson", data: moc });
+            MAPA.addLayer({
+                id: "MOC", type: "circle", source: "MOC",
+                paint: {
+                    "circle-radius": [
+                        "case",
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]],
+                        5, 3
+                    ],
+                    "circle-color": "#94540c",
+                    "circle-stroke-width": 0.5,
+                    "circle-stroke-color": "#fff",
+                    "circle-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ],
+                    "circle-stroke-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ]
+                }
+            });
+        }
+        if (!MAPA.getSource("OBS")) {
+            MAPA.addSource("OBS", { type: "geojson", data: obs });
+            MAPA.addLayer({
+                id: "OBS", type: "circle", source: "OBS",
+                paint: {
+                    "circle-radius": [
+                        "case",
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]],
+                        5, 3
+                    ],
+                    "circle-color": "#f7ec8a",
+                    "circle-stroke-width": 0.5,
+                    "circle-stroke-color": "#fff",
+                    "circle-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ],
+                    "circle-stroke-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ]
+                }
+            });
+        }
+
+        if (!MAPA.getSource("ROV")) {
+            MAPA.addSource("ROV", { type: "geojson", data: rov });
+            MAPA.addLayer({
+                id: "ROV", type: "circle", source: "ROV",
+                paint: {
+                    "circle-radius": [
+                        "case",
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]],
+                        5, 3
+                    ],
+                    "circle-color": "#7a165c",
+                    "circle-stroke-width": 0.5,
+                    "circle-stroke-color": "#fff",
+                    "circle-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ],
+                    "circle-stroke-opacity": [
+                        "case",
+                        ["==", targetId, "__NONE__"], 1.0,
+                        ["any", ["==", ["get", "cruiseid"], targetId], ["==", ["get", "cuiseid"], targetId], ["==", ["get", "cruise_id"], targetId]], 1.0,
+                        0.15
+                    ]
+                }
+            });
+        }
 
 
 
@@ -259,11 +394,11 @@ function applyHighlight(MAPA) {
     // Llista de totes les capes de tipus línia que volem gestionar
     const lineLayers = [
         "gdccruises", "hescruises", "sdgcruises", "odbcruises",
-        "gdctracks", "hestracks", "sdgtracks", "odbtracks"
+        "gdctracks", "hestracks", "sdgtracks", "odbtracks","SEI"
     ];
 
     // Llista de capes de tipus cercle (punts)
-    const pointLayers = ["WCP", "DRE", "CTD", "COR"];
+    const pointLayers = ["WCP", "DRE", "CTD", "COR","MOC", "NET", "ROV", "OBS","NET","MOC","OBS","ROV"];
 
     // Expressió comuna per filtrar les propietats (redueix repeticions)
     const filterExpression = [
@@ -411,7 +546,46 @@ function showFeaturePopup(MAPA, e, feature) {
                 "met_cat": "Metadata",
             }
         },
-
+        "NET": {
+            campos: ["vessel", "cruiseid", "met_cat"],
+            diccionario: {
+                "vessel": "Vessel",
+                "cruiseid": "ID",
+                "met_cat": "Metadata",
+            }
+        },
+        "MOC": {
+            campos: ["vessel", "cruiseid", "met_cat"],
+            diccionario: {
+                "vessel": "Vessel",
+                "cruiseid": "ID",
+                "met_cat": "Metadata",
+            }
+        },       
+        "OBS": {
+            campos: ["vessel", "cruiseid", "met_cat"],
+            diccionario: {
+                "vessel": "Vessel",
+                "cruiseid": "ID",
+                "met_cat": "Metadata",
+            }
+        },
+        "ROV": {
+            campos: ["vessel", "cruiseid", "met_cat"],
+            diccionario: {
+                "vessel": "Vessel",
+                "cruiseid": "ID",
+                "met_cat": "Metadata",
+            }
+        },
+        "SEI": {
+            campos: ["vessel", "cruiseid", "met_cat"],
+            diccionario: {
+                "vessel": "Vessel",
+                "cruiseid": "ID",
+                "met_cat": "Metadata",
+            }
+        },
         "default": {
             campos: ["vessel", "year", "distance_nm", "met_cat"],
             diccionario: {
@@ -433,10 +607,15 @@ function showFeaturePopup(MAPA, e, feature) {
         "WCP": "Water Column Profile",
         "COR": "Sediment Corer",
         "DRE": "Dredge",
-        "CTD": "CTD"    
+        "CTD": "CTD",
+        "NET": "Net",
+        "MOC":"Mocness",
+        "OBS": "OBS",
+        "ROV":"ROV",
+        "SEI":"Seismic tracklines"      
     };
     let tituloPopup = "";
-    if (layerId === "WCP" || layerId === "DRE" || layerId === "CTD" || layerId === "COR") {
+    if (layerId === "WCP" || layerId === "DRE" || layerId === "CTD" || layerId === "COR"|| layerId === "NET"|| layerId==="MOC"|| layerId === "ROV"|| layerId==="OBS"|| layerId==="SEI") {
         const nombreMostrar = nombresCompletosCapas[layerId] || layerId;
         tituloPopup = `<strong>Station: ${nombreMostrar}</strong>`;
     }
@@ -451,6 +630,13 @@ function showFeaturePopup(MAPA, e, feature) {
 
     camposAMostrar.forEach((key, index) => {
         let val = props[key];
+
+        if (layerId === "WCP" && key === "data_view") {
+            if (!props.cdiid && !props.data_view) return;
+            val = `<a href="#" class="wcp-profile-link">View profile</a>`;
+        } else if (val === null || val === undefined || String(val).trim() === "") {
+            return;
+        }
 
         if (val !== null && val !== undefined && String(val).trim() !== "") {
 
@@ -499,6 +685,20 @@ function showFeaturePopup(MAPA, e, feature) {
             console.log("[layers] Clic View data:", { cruiseId, cruiseName, layerId });
             openCruiseDataPanel(cruiseId, layerId, "met", cruiseName);
         });
+    } else if (layerId === "WCP" && (props.cdiid || props.data_view)) {
+        const openProfile = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openWcpProfileFromFeature(props);
+        };
+
+        activePopup.getElement()?.querySelectorAll(".wcp-profile-link, .wcp-profile-btn").forEach((el) => {
+            el.addEventListener("click", openProfile);
+        });
+
+        activePopup.getElement()?.querySelectorAll('a[href*="svp_viewer"]').forEach((link) => {
+            link.addEventListener("click", openProfile);
+        });
     } else {
         console.log("[layers] No boton view data:", { layerId, cruiseId, isCruise });
     }
@@ -517,7 +717,7 @@ function handleClick(MAPA, e) {
 }
 
 function registerPopupHandlers(MAPA) {
-    const layerIDs = ["WCP", "sdgcruises", "odbcruises", "hescruises", "gdccruises", "COR", "DRE", "CTD"];
+    const layerIDs = ["WCP", "sdgcruises", "odbcruises", "hescruises", "gdccruises", "COR", "DRE", "CTD","NET","MOC","OBS","ROV","SEI"];
     layerIDs.forEach(id => {
         if (MAPA.getLayer(id)) {
             MAPA.off('click', id, (e) => handleClick(MAPA, e));
@@ -565,6 +765,11 @@ const LAYER_CHECKBOX_MAP = {
     "DRE": "DRE",
     "CTD": "CTD",
     "COR": "COR",
+    "NET": "NET",
+    "MOC":"MOC",
+    "ROV": "ROV",
+    "OBS":"OBS",
+    "SEI":"SEI",
     "sdgcruises": "sdgcruises",
     "odbcruises": "odbcruises",
     "hescruises": "hescruises",
@@ -597,3 +802,6 @@ function wireCheckboxes(MAPA) {
         });
     });
 }
+
+
+

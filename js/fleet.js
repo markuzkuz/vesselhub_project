@@ -1,5 +1,7 @@
 import { LoadLayers } from './layers.js';
 import { initCruiseDataPanel } from './cruiseCharts.js';
+import { initWcpProfilePanel, closeWcpProfilePanel } from './wcpProfileCharts.js';
+import { initCampaignDeepLinks } from './campaignDeepLinks.js?v=20260629';
 
 const WS_VESSEL = {
     ODB: "https://datahub.utm.csic.es/ws/getPoint/ODB/JSON/",
@@ -84,6 +86,7 @@ MAPA.on('style.load', () => {
 
 
 window.MAPA = MAPA;
+window.closeWcpProfilePanel = closeWcpProfilePanel;
 let starfieldCtrl = null;
 
 const vesselPopups = {};
@@ -166,12 +169,7 @@ function formatDateTime(d, t) {
     if (!d || !t) return "--";
     return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4, 8)} ${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}`;
 }
-//CANVI APLICAT A 04/05 comentar amb Xavi
-/*function decimalToDMS(d) {
-    if (isNaN(d)) return "--";
-    const deg = Math.floor(d),
-        min = Math.floor((d - deg) * 60), sec = ((d - deg - min / 60) * 3600).toFixed(2); return `${deg}° ${min}' ${sec}"`;
-}*/
+
 function decimalToDMS(d) {
     if (isNaN(d)) return "--";
 
@@ -230,6 +228,15 @@ window.actualizarDatosTSS = function () {
 
 window.zoomToVessel = () => { const c = latestPos[$('#vessel-selector').val()]; if (c) MAPA.flyTo({ center: c, zoom: 8 }); };
 
+function updateVesselSymbolLayouts() {
+    Object.keys(WS_VESSEL).forEach((id) => {
+        if (!MAPA.getLayer(id)) return;
+        MAPA.setLayoutProperty(id, 'icon-rotation-alignment', 'map');
+        MAPA.setLayoutProperty(id, 'icon-pitch-alignment', 'viewport');
+        MAPA.setLayoutProperty(id, 'icon-keep-upright', false);
+    });
+}
+
 // --- MAPA VAIXELLS I POPUPS ---
 async function updateVesselsOnMap() {
 
@@ -254,9 +261,13 @@ async function updateVesselsOnMap() {
                     layout: {
                         "icon-image": `icon-${id}`, "icon-size": 0.8,
                         "icon-allow-overlap": true,
+                        "icon-rotation-alignment": "map",
+                        "icon-pitch-alignment": "viewport",
+                        "icon-keep-upright": false,
                         "icon-rotate": ["to-number", ["coalesce", ["get", "heading"], ["get", "COG"], 0]]
                     }
                 });
+                updateVesselSymbolLayouts();
                 addInteractionToLayer(id);
             } else {
                 MAPA.getSource(id).setData(data);

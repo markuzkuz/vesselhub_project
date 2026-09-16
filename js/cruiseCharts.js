@@ -293,9 +293,15 @@ function timeLimits(...seriesList) {
 
     if (!count) return {};
 
+    // Igual que els eixos Y, deixem un petit marge perquè el primer i l'últim
+    // punt no quedin enganxats als límits del gràfic. Per a una sola mostra,
+    // usem una hora com a rang base en lloc d'un percentatge del timestamp.
+    const range = max - min || 60 * 60 * 1000;
+    const padding = range * 0.08;
+
     return {
-        min,
-        max
+        min: min - padding,
+        max: max + padding
     };
 }
 
@@ -529,8 +535,67 @@ function handleChartHover(event, activeElements, chartInstance) {
     hideMapMarker();
 }
 
+const CRUISE_VESSEL_NAMES = {
+    "SDG": "Sarmiento de Gamboa",
+    "ODB": "Odón de Buen",
+    "HES": "Hespérides",
+    "GDC": "García del Cid"
+};
+
+function safeFloat(val) {
+    if (val === "" || val === undefined || val === null) return null;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? null : parsed;
+}
+
+function parseSearchCSV(text, datatype) {
+    const lines = text.trim().split("\n");
+    log("parseSearchCSV: total lines:", lines.length);
+    const records = [];
+    
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        const parts = line.split(",");
+        if (parts.length < 5) continue;
+        
+        const dateStr = parts[1];
+        const timeStr = parts[2];
+        if (dateStr.length !== 8 || timeStr.length !== 6) continue;
+        
+        const year = dateStr.slice(0, 4);
+        const month = dateStr.slice(4, 6);
+        const day = dateStr.slice(6, 8);
+        const hours = timeStr.slice(0, 2);
+        const minutes = timeStr.slice(2, 4);
+        const seconds = timeStr.slice(4, 6);
+        const timeVal = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        
+        const lon = parseFloat(parts[3]);
+        const lat = parseFloat(parts[4]);
+        
+        if (isNaN(lon) || isNaN(lat)) continue;
+
+        const row = {
+            "YYYY-MM-DDThh:mm:ss.sss": timeVal,
+            "lat": lat,
+            "lon": lon
+        };
+        
+        if (datatype === "met") {
+            row["Air temperature [Degrees Celsius]"] = safeFloat(parts[7]);
+            row["Wind speed [Metres per second]"] = safeFloat(parts[5]);
+            row["Air pressure [Hectopascals]"] = safeFloat(parts[10]);
+        } else {
+            row["Temperature [Degrees Celsius]"] = safeFloat(parts[6]);
+            row["Salinity [Dimensionless]"] = safeFloat(parts[5]);
+        }
+        records.push(row);
+    }
+    log("parseSearchCSV parsed records:", records.length);
+    return records;
+}
+
 async function loadAndRenderChart(datatypeInput) {
-    // Filtre tolerant per evitar trencar el condicional si el valor ve en majúscules o amb text llarg
     let datatype = String(datatypeInput).toLowerCase().trim();
     if (datatype.includes("met")) {
         datatype = "met";
@@ -541,7 +606,6 @@ async function loadAndRenderChart(datatypeInput) {
     log("loadAndRenderChart procedint amb el datatype netejat:", datatype);
     if (!currentCruise) return;
 
-    const { cruiseId, displayName, vessel, date } = currentCruise;
     const titleEl = document.getElementById("cruise-data-title");
     const urlEl = document.getElementById("cruise-data-url");
     const canvas = document.getElementById("cruise-data-chart");
@@ -551,36 +615,52 @@ async function loadAndRenderChart(datatypeInput) {
         return;
     }
 
-    // Buidem la instància de Chart de forma neta sense alterar l'estructura HTML del DOM
     destroyChart();
     setPanelState({ loading: true, error: "" });
 
-    if (titleEl) {
-        titleEl.textContent = `${displayName || cruiseId} — ${DATA_TYPES[datatype]?.chartTitle || datatype}`;
-    }
-
-    // NOU: Generem l'enllaç directe al nivell /open/ abans d'intentar buscar el CSV
-    // D'aquesta manera, si falla el 'fetch', l'enllaç ja estarà pintat i disponible per a l'usuari.
-    const openDirUrl = `${DATA_BASE}/${vessel}/${date}/open/`;
-    if (urlEl) {
-        urlEl.innerHTML = `<a href="${openDirUrl}" target="_blank" rel="noopener noreferrer" style="color: #3182ce; text-decoration: underline; font-weight: 500;">Download data</a>`;
-    }
-
     try {
-        // Busquem si existeix el fitxer concret
-        const { url, fileName, dirUrl } = await discoverCsvUrl({ ...currentCruise, datatype });
-        
-        // NOTA: Eliminem la línia antiga 'if (urlEl) urlEl.textContent = url;' 
-        // per mantenir sempre visible l'enllaç al directori general /open/ que hem creat a dalt.
+        let records = [];
+        if (currentCruise.isSearch) {
+            const { vessel, startDate, endDate, displayName } = currentCruise;
+            if (titleEl) {
+                titleEl.textContent = `${displayName} — ${DATA_TYPES[datatype]?.chartTitle || datatype}`;
+            }
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`File not found (${response.status})`);
-        const text = await response.text();
+            let apiType = datatype === "met" ? "MET" : "TSS";
+            const searchDownloadUrl = `https://datahub.utm.csic.es/ws/getSerie/${vessel}/${apiType}/?start=${startDate}&end=${endDate}&download`;
+            if (urlEl) {
+                urlEl.innerHTML = `<a href="${searchDownloadUrl}" target="_blank" rel="noopener noreferrer" style="color: #3182ce; text-decoration: underline; font-weight: 500;">Download data</a>`;
+            }
 
-        const records = parseCSV(text);
-        if (!records.length) throw new Error("The file contains no data");
+            const apiUrl = `https://datahub.utm.csic.es/ws/getSerie/${vessel}/${apiType}/?start=${startDate}&end=${endDate}`;
+            log("loadAndRenderChart search Fetch URL:", apiUrl);
+            const response = await fetch(apiUrl);
+            if (!response.ok) throw new Error(`Data not found (${response.status})`);
+            const text = await response.text();
+            
+            records = parseSearchCSV(text, datatype);
+            if (!records.length) throw new Error("The search contains no data");
+        } else {
+            const { cruiseId, displayName, vessel, date } = currentCruise;
+            if (titleEl) {
+                titleEl.textContent = `${displayName || cruiseId} — ${DATA_TYPES[datatype]?.chartTitle || datatype}`;
+            }
+
+            const openDirUrl = `${DATA_BASE}/${vessel}/${date}/open/`;
+            if (urlEl) {
+                urlEl.innerHTML = `<a href="${openDirUrl}" target="_blank" rel="noopener noreferrer" style="color: #3182ce; text-decoration: underline; font-weight: 500;">Download data</a>`;
+            }
+
+            const { url } = await discoverCsvUrl({ ...currentCruise, datatype });
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`File not found (${response.status})`);
+            const text = await response.text();
+
+            records = parseCSV(text);
+            if (!records.length) throw new Error("The file contains no data");
+        }
+
         const ChartClass = window.Chart || Chart;
-
         if (!ChartClass) throw new Error("Chart.js is not loaded (Chart is undefined)");
         const chartConfig = datatype === "met" ? buildMetChart(records) : buildTsChart(records);
 
@@ -600,16 +680,13 @@ async function loadAndRenderChart(datatypeInput) {
                 maintainAspectRatio: false,
                 animation: false,
                 interaction: { mode: "nearest", axis: "x", intersect: false },
-
                 onHover: handleChartHover,
                 hover: {
                     onHover: handleChartHover
                 },
-
                 plugins: {
                     legend: { position: "top" },
                     decimation: { enabled: false },
-
                     tooltip: {
                         callbacks: {
                             label: function (context) {
@@ -637,7 +714,6 @@ async function loadAndRenderChart(datatypeInput) {
         setPanelState({ loading: false });
     } catch (err) {
         logError("Error loading data:", err);
-        // The panel will show the error of unavailable data, but the link generated at the top will remain visible.
         setPanelState({ loading: false, error: err.message || "Error loading data" });
     }
 }
@@ -660,9 +736,43 @@ export function closeCruiseDataPanel() {
     resizeMap();
 }
 
+export function openSearchDataPanel(vessel, startDate, endDate, datatype = "met") {
+    if (typeof window.closeWcpProfilePanel === "function") {
+        window.closeWcpProfilePanel();
+    }
+
+    const panel = document.getElementById("cruise-data-panel");
+    const typeSelect = document.getElementById("cruise-data-type");
+    if (!panel) return;
+
+    const vesselFullName = CRUISE_VESSEL_NAMES[vessel] || vessel;
+    const formattedStart = `${startDate.slice(0, 4)}-${startDate.slice(4, 6)}-${startDate.slice(6, 8)}`;
+    const formattedEnd = `${endDate.slice(0, 4)}-${endDate.slice(4, 6)}-${endDate.slice(6, 8)}`;
+
+    currentCruise = {
+        isSearch: true,
+        vessel: vessel,
+        startDate: startDate,
+        endDate: endDate,
+        displayName: `${vesselFullName} (${formattedStart} - ${formattedEnd})`
+    };
+    panel.classList.add("open");
+    document.body.classList.add("cruise-panel-open");
+    if (typeSelect && typeSelect.value !== datatype) {
+        typeSelect.value = datatype;
+    }
+    resizeMap();
+    loadAndRenderChart(datatype);
+}
+
 export function openCruiseDataPanel(cruiseId, layerId, datatype = "met", displayName = "") {
     const cruise = resolveVessel(cruiseId, layerId);
     if (!cruise) return;
+
+    if (typeof window.closeWcpProfilePanel === "function") {
+        window.closeWcpProfilePanel();
+    }
+
     const panel = document.getElementById("cruise-data-panel");
     const typeSelect = document.getElementById("cruise-data-type");
     if (!panel) return;
@@ -705,4 +815,9 @@ export function initCruiseDataPanel(map) {
     typeSelect?.addEventListener("change", (e) => {
         if (currentCruise) loadAndRenderChart(e.target.value);
     });
+}
+
+if (typeof window !== "undefined") {
+    window.openSearchDataPanel = openSearchDataPanel;
+    window.closeCruiseDataPanel = closeCruiseDataPanel;
 }

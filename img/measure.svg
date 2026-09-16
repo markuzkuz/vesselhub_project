@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Mesurar distàncies i àrees</title>
+  <desc>Icona en blanc i negre d'una eina de mesura GIS</desc>
+  <g fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Distance measurement -->
+    <path d="M10 18 L54 18" stroke-dasharray="5 5"/>
+    <path d="M10 13 V23 M54 13 V23"/>
+    <circle cx="10" cy="18" r="3" fill="#fff"/>
+    <circle cx="54" cy="18" r="3" fill="#fff"/>
+
+    <!-- Area polygon -->
+    <path d="M14 48 L24 31 L49 36 L43 53 Z" fill="#fff"/>
+    <path d="M14 48 L24 31 L49 36 L43 53 Z"/>
+
+    <!-- Area hatch -->
+    <path d="M18 47 L26 34 M24 50 L34 33 M31 52 L41 35 M38 52 L46 38" stroke-width="2"/>
+
+    <!-- Polygon vertices -->
+    <circle cx="14" cy="48" r="2.5" fill="#000"/>
+    <circle cx="24" cy="31" r="2.5" fill="#000"/>
+    <circle cx="49" cy="36" r="2.5" fill="#000"/>
+    <circle cx="43" cy="53" r="2.5" fill="#000"/>
+  </g>
+</svg>

@@ -46,11 +46,11 @@
     <a id="map-logo" href="https://www.utm.csic.es/" target="_blank" title="Visit UTM-CSIC">
         <img src="img/logo.png" alt="UTM-CSIC Logo">
     </a>
-    <!--popup primera visita-->
+
     <!--<div id="tutorial-overlay">
         <div id="tutorial-box">
             <div class="tutorial-header">
-                <h2> Welcome to Fleet Tracker</h2>
+                <h2> Welcome to VesselHub</h2>
 
                 <a href="https://www.utm.csic.es/" target="_blank" class="tutorial-header-logo">
                     <img src="img/logo.png" alt="UTM CSIC">
@@ -93,9 +93,9 @@
     </div>
 
     <div id="map-container">
-        
+
         <canvas id="starfield"></canvas>
-        
+
         <div id="map">
             <div class="basemap-ui">
                 <div id="btn-esri" class="thumb-card active"
@@ -111,7 +111,7 @@
         </div>
     </div>
 
-    <!-- BOTONS  DE LA DRETA-->
+    <!-- RIGHT BUTTONS-->
     <button id="layers-btn" class="sidebar-btn" title="Toggle Layers"><img src="img/layer-group.svg"
             class="icono"></button>
 
@@ -130,9 +130,10 @@
     <button id="grid-btn" class="sidebar-btn" title="Show grid"><img src="img/border-all-solid-full.svg"
             class="icono"></button>
 
+    <button id="measure-btn" class="sidebar-btn" title="Measure"><img src="img/measure.svg" class="icono"></button>
+
     <button id="wind-btn" class="sidebar-btn" title="Wind layer"><img src="img/wind-solid-full.svg"
             class="icono"></button>
-
 
     <div class="controls" id="layers-panel">
         <h3>Projection</h3>
@@ -144,116 +145,153 @@
         <hr style="border: 0; border-top: 1px solid #ddd; margin: 10px 0;">
 
         <h3>UTM-CSIC LAYERS</h3>
-        
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 5px;">
-            <h4 style="margin: 0;">Vessel tracks (including transits):</h4>
-            <img id="toggle-tracks" style="cursor: pointer;" title="Show vessel tracks" src="img/eye-solid-full.svg"
-                class="icono">
+
+        <h4 class="collapsible">
+            <img class="arrow" src="img/caret-down-solid-full.svg" alt="">
+            <span>Vessel tracks (including transits):</span>
+            <img id="toggle-tracks" style="cursor: pointer;margin-left:auto" title="Show vessel tracks"
+                src="img/eye-solid-full.svg" class="icono">
+        </h4>
+        <div class="section-content">
+            <label>
+                <input type="checkbox" id="sdgtracks" checked>
+                <span class="legend-line"
+                    style="background: repeating-linear-gradient(to right, #93B253 0px, #93B253 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                Sarmiento de Gamboa RV tracks
+            </label>
+
+            <label>
+                <input type="checkbox" id="odbtracks" checked>
+                <span class="legend-line"
+                    style="background: repeating-linear-gradient(to right, #FFFFFF 0px, #FFFFFF 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                Odón de Buen RV tracks
+            </label>
+
+            <label>
+                <input type="checkbox" id="gdctracks" checked>
+                <span class="legend-line"
+                    style="background: repeating-linear-gradient(to right, #74B9BC 0px, #74B9BC 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                García del Cid RV tracks
+            </label>
+
+            <label>
+                <input type="checkbox" id="hestracks" checked>
+                <span class="legend-line"
+                    style="background: repeating-linear-gradient(to right, #FFC928 0px, #FFC928 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                Hespérides RV tracks
+            </label>
+        </div>
+        <h4 class="collapsible">
+            <img class="arrow" src="img/caret-down-solid-full.svg" alt="">
+            <span>Cruise tracks:</span>
+            <img id="toggle-cruises" style="cursor: pointer;margin-left:auto" title="Show cruises"
+                src="img/eye-solid-full.svg" class="icono">
+        </h4>
+        <div class="section-content ">
+
+            <label>
+                <input type="checkbox" id="sdgcruises" checked>
+                <span class="legend-line"
+                    style="background: #93B253; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                Sarmiento de Gamboa RV cruises
+            </label>
+
+            <label>
+                <input type="checkbox" id="odbcruises" checked>
+                <span class="legend-line"
+                    style="background: #FFFFFF; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                Odón de Buen RV cruises
+            </label>
+
+            <label>
+                <input type="checkbox" id="gdccruises" checked>
+                <span class="legend-line"
+                    style="background: #74B9BC; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                García del Cid RV cruises
+            </label>
+            <label>
+                <input type="checkbox" id="hescruises" checked>
+                <span class="legend-line"
+                    style="background: #FFC928; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
+                Hespérides RV cruises
+            </label>
         </div>
 
-        <label>
-            <input type="checkbox" id="sdgtracks" checked>
-            <span class="legend-line"
-                style="background: repeating-linear-gradient(to right, #93B253 0px, #93B253 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            Sarmiento de Gamboa RV tracks
-        </label>
+        <h4 class="collapsible">
+            <img class="arrow" src="img/caret-right-solid-full.svg" alt="">
+            <span>Stations:</span>
+            <img id="toggle-stations" style="cursor: pointer; margin-left:auto" title="Show Stations"
+                src="img/eye-solid-full.svg" class="icono">
+        </h4>
+        <div class="section-content collapsed">
 
-        <label>
-            <input type="checkbox" id="odbtracks" checked>
-            <span class="legend-line"
-                style="background: repeating-linear-gradient(to right, #FFFFFF 0px, #FFFFFF 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            Odón de Buen RV tracks
-        </label>
-
-        <label>
-            <input type="checkbox" id="gdctracks" checked>
-            <span class="legend-line"
-                style="background: repeating-linear-gradient(to right, #74B9BC 0px, #74B9BC 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            García del Cid RV tracks
-        </label>
-
-        <label>
-            <input type="checkbox" id="hestracks" checked>
-            <span class="legend-line"
-                style="background: repeating-linear-gradient(to right, #FFC928 0px, #FFC928 4px, transparent 4px, transparent 8px); display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            Hespérides RV tracks
-        </label>
-        
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 5px;">
-            <h4 style="margin: 0;">Cruise tracks:</h4>
-            <img id="toggle-cruises" style="cursor: pointer;" title="Show cruises" src="img/eye-solid-full.svg"
-                class="icono">
-        </div>
-
-        <label>
-            <input type="checkbox" id="sdgcruises" checked>
-            <span class="legend-line"
-                style="background: #93B253; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            Sarmiento de Gamboa RV cruises
-        </label>
-
-        <label>
-            <input type="checkbox" id="odbcruises" checked>
-            <span class="legend-line"
-                style="background: #FFFFFF; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            Odón de Buen RV cruises
-        </label>
-
-        <label>
-            <input type="checkbox" id="gdccruises" checked>
-            <span class="legend-line"
-                style="background: #74B9BC; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            García del Cid RV cruises
-        </label>
-        <label>
-            <input type="checkbox" id="hescruises" checked>
-            <span class="legend-line"
-                style="background: #FFC928; display: inline-block; width: 16px; height: 4px; vertical-align: middle; margin-right: 5px;"></span>
-            Hespérides RV cruises
-        </label>
-
-        
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 5px;">
-           <H4 style="margin: 0;">Stations:</H4>
-            <img id="toggle-stations" style="cursor: pointer;" title="Show Stations" src="img/eye-solid-full.svg"
-                class="icono">
-        </div>
-
-        <label>
-            <input type="checkbox" id="COR" checked>
-            <span class="legend-symbol"
-                style="background: #AF2D1B;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
-            Sediment corer
-        </label>
-        <label>
-            <input type="checkbox" id="CTD" checked>
+            <label>
+                <input type="checkbox" id="COR" checked>
                 <span class="legend-symbol"
-                    style="background: #BC8AE8;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
-            CTD
-        </label>
-        <label>
-            <input type="checkbox" id="WCP" checked>
+                    style="background: #AF2D1B;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
+                Sediment corer
+            </label>
+            <label>
+                <input type="checkbox" id="CTD" checked>
                     <span class="legend-symbol"
-                        style="background: #00aaff;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
-            Water column profiles
-        </label>
-        <label>
-            <input type="checkbox" id="DRE" checked>
+                        style="background: #BC8AE8;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
+                CTD
+            </label>
+            <label>
+                <input type="checkbox" id="WCP" checked>
                         <span class="legend-symbol"
-                            style="background: #5d6366;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
-                        Dredge
-        </label>
+                            style="background: #00aaff;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;""></span>
+                Water column profiles
+            </label>
+            <label>
+                <input type="checkbox" id="DRE" checked>
+                            <span class="legend-symbol"
+                                style="background: #5d6366;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                            Dredge
+            </label>
+            <label>
+                <input type="checkbox" id="NET" checked>
+                <span class="legend-symbol"
+                    style="background: #057e1f;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                Net
+            </label>
+            <label>
+                <input type="checkbox" id="MOC" checked>
+                <span class="legend-symbol"
+                    style="background: #94540c;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                Mocness
+            </label>
+
+            <label>
+                <input type="checkbox" id="OBS" checked>
+                <span class="legend-symbol"
+                    style="background: #f7ec8a;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                OBS
+            </label>
+            <label>
+                <input type="checkbox" id="ROV" checked>
+                <span class="legend-symbol"
+                    style="background: #7a165c;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                ROV
+            </label>
+            <label>
+                <input type="checkbox" id="SEI" checked>
+                <span class="legend-symbol"
+                    style="background: #000000;border-radius: 50%;display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-right: 5px;"></span>
+                Seismic tracklines
+            </label>
+        </div>
 
 
 
-
-        <h3>EXTERNAL LAYERS:</h3>
-        <label><input type="checkbox" id="eez-wms"> EEZ (Marine Regions)</label>
-        <label><input type="checkbox" id="ihm-wms"> IHM Nautical charts</label>
-
+        <h3 class="collapsible">
+            <img class="arrow" src="img/caret-right-solid-full.svg" alt="">
+            <span>EXTERNAL LAYERS</span>
+        </h3>
+        <div class="section-content collapsed">
+            <label><input type="checkbox" id="eez-wms"> EEZ (Marine Regions)</label>
+            <label><input type="checkbox" id="ihm-wms"> IHM Nautical charts</label>
+        </div>
     </div>
 
     <div id="tool-panel">
@@ -282,11 +320,11 @@
             </div>
 
             <label><input type="checkbox" id="ODB-track-check" checked> <span class="legend-icon"
-                    style="background-color:#3388FF; width:14px; height:3px; clip-path:none;"></span> Track ODB</label>
+                    style="background-color:#B61600; width:14px; height:3px; clip-path:none;"></span> Track ODB</label>
             <label><input type="checkbox" id="SDG-track-check" checked> <span class="legend-icon"
-                    style="background-color:#3388FF; width:14px; height:3px; clip-path:none;"></span> Track SDG</label>
+                    style="background-color:#B61600; width:14px; height:3px; clip-path:none;"></span> Track SDG</label>
             <label><input type="checkbox" id="HES-track-check" checked> <span class="legend-icon"
-                    style="background-color:#3388FF; width:14px; height:3px; clip-path:none;"></span> Track HES</label>
+                    style="background-color:#B61600; width:14px; height:3px; clip-path:none;"></span> Track HES</label>
         </div>
         <div id="rt-tab" class="tab-content" style="display: none;">
             <div class="action-bar">
@@ -362,35 +400,76 @@
     </div>
 
     <div id="search-panel">
-        <div id="search-loader" class="panel-loader">
-            <div class="spinner"></div>
-            <div class="loader-text">Loading...</div>
+        <div class="tabs-header">
+            <button class="tab-link active" onclick="openTab(event, 'tab_track')">Search track</button>
+            <button class="tab-link" onclick="openTab(event, 'tab_cruise')">Search cruise</button>
         </div>
-        <h3>Search track</h3>
-        <div id="form-container">
-            <form>
-                <label for="sdg_hes_gdc">Select the vessel:</label>
-                <select id="sdg_hes_gdc" name="sdg_hes_gdc">
-                    <option value="SDG">Sarmiento de Gamboa</option>
-                    <option value="HES">Hespérides</option>
-                    <option value="GDC">Garcia del Cid</option>
-                    <option value="ODB">Odón de Buen</option>
-                </select>
+        <div id="tab_track" class="tab-content" style="display: block;">
+            <div id="search-loader" class="panel-loader">
+                <div class="spinner"></div>
+                <div class="loader-text">Loading...</div>
+            </div>
 
-                <label for="fecha_inicio">Start date:</label>
-                <input type="date" id="fecha_inicio" name="fecha_inicio">
+            <div id="form-container">
+                <form>
+                    <label for="sdg_hes_gdc">Select the vessel:</label>
+                    <select id="sdg_hes_gdc" name="sdg_hes_gdc">
+                        <option value="SDG">Sarmiento de Gamboa</option>
+                        <option value="HES">Hespérides</option>
+                        <option value="GDC">Garcia del Cid</option>
+                        <option value="ODB">Odón de Buen</option>
+                    </select>
 
-                <label for="fecha_fin">End date:</label>
-                <input type="date" id="fecha_fin" name="fecha_fin">
+                    <label for="fecha_inicio">Start date:</label>
+                    <input type="date" id="fecha_inicio" name="fecha_inicio">
 
-                <p style="margin: 0;">
-                    <label for="interval">Time interval (seconds):</label>
-                    <input type="number" id="interval" value="120" min="1">
-                </p>
-                <button id="searchTrack" type="submit">Show track</button>
-            </form>
-            <button id="clearTrack">Clear Track</button>
-            <button id="download" type="button">Download data</button>
+                    <label for="fecha_fin">End date:</label>
+                    <input type="date" id="fecha_fin" name="fecha_fin">
+
+                    <p style="margin: 0;">
+                        <label for="interval">Time interval (seconds):</label>
+                        <input type="number" id="interval" value="120" min="1">
+                    </p>
+                    <button id="searchTrack" type="submit">Show track</button>
+                    <div id="track-stats"
+                        style="display: none; margin-top: 12px; padding: 8px 12px; background: #e0f2fe; border-left: 4px solid #0284c7; border-radius: 0 6px 6px 0; align-items: center; gap: 8px; font-size: 12.5px; color: #0369a1; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <svg style="width: 16px; height: 16px; flex-shrink: 0;" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                        </svg>
+                        <span id="track-stats-text">-- NM sailed in -- days</span>
+                    </div>
+                </form>
+                <button id="clearTrack">Clear Track</button>
+                <button id="download" type="button">Download data</button>
+                <button id="previewSearchData" type="button" disabled>Preview data</button>
+            </div>
+        </div>
+        <div id="tab_cruise" class="tab-content" style="display: none;">
+            <div id="form-container-cruise" style="margin-top: 15px;">
+                <form id="cruise-search-form">
+                    <label for="vessel-select-cruise">Select the vessel:</label>
+                    <select id="vessel-select-cruise" name="vessel"
+                        style="width: 100%; padding: 4px; margin-bottom: 10px;">
+                        <option value="" disabled selected>Select a vessel...</option>
+                        <option value="SDG">Sarmiento de Gamboa</option>
+                        <option value="HES">Hespérides</option>
+                        <option value="GDC">Garcia del Cid</option>
+                        <option value="ODB">Odón de Buen</option>
+                    </select>
+
+                    <label for="cruise-input">Search cruise:</label>
+                    <input type="text" id="cruise-input" list="cruise-list" placeholder="Awaiting vessel selection..."
+                        disabled autocomplete="off"
+                        style="width: 100%; padding: 4px; margin-bottom: 10px; box-sizing: border-box;">
+                    <datalist id="cruise-list"></datalist>
+
+                    <button id="searchCruiseBtn" type="submit" disabled>Highlight cruise</button>
+                    <button id="showTrackBtn" type="button" disabled>Show cruise</button>
+                </form>
+                <button id="clearCruiseBtn" style="margin-top: 5px;">Clear Highlight</button>
+            </div>
         </div>
     </div>
 
@@ -464,9 +543,42 @@
 
     <div id="malla-panel">
     </div>
+    <div id="measure-panel">
+        <div class="measure-actions">
+            <button id="btn-distance" type="button">Distance</button>
+            <button id="btn-area" type="button">Area</button>
+            <button id="btn-clear" type="button">Clear</button>
+        </div>
 
+        <select id="unit-distance" style="display:none;">
+            <option value="meters">meters</option>
+            <option value="kilometers" selected>kilometers</option>
+            <option value="nauticalmiles">nautical miles</option>
+        </select>
+
+        <select id="unit-area" style="display:none;">
+            <option value="m2">m²</option>
+            <option value="hectares" selected>hectares</option>
+            <option value="km2">km²</option>
+        </select>
+
+        <div id="measure-hint">Click to add points. Double click or press Enter to finish.</div>
+        <div id="measure-result"></div>
     </div>
-
+    <div id="wcp-profile-panel" class="wcp-profile-panel">
+        <div class="wcp-profile-header">
+            <span id="wcp-profile-title">Water column profile</span>
+            <button id="wcp-profile-close" type="button" title="Close">&times;</button>
+        </div>
+        <div id="wcp-profile-url" class="wcp-profile-url"></div>
+        <div class="wcp-profile-body">
+            <div id="wcp-profile-loading" class="wcp-profile-loading hidden">Loading...</div>
+            <div id="wcp-profile-error" class="wcp-profile-error hidden"></div>
+            <div class="wcp-profile-chart-wrap">
+                <canvas id="wcp-profile-chart"></canvas>
+            </div>
+        </div>
+    </div>
 
     <div id="cruise-data-panel" class="cruise-data-panel">
         <div class="cruise-data-header">
@@ -497,64 +609,32 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
+            const relaciones = {
+                'ODB-check': 'ODB-track-check',
+                'SDG-check': 'SDG-track-check',
+                'HES-check': 'HES-track-check'
+            };
 
-            const btnSearchTrack = document.getElementById('searchTrack');
-            const btnAdd = document.getElementById('btnAdd');
+            for (const [vesselId, trackId] of Object.entries(relaciones)) {
+                const vesselCheck = document.getElementById(vesselId);
+                const trackCheck = document.getElementById(trackId);
 
+                if (vesselCheck && trackCheck) {
+                    vesselCheck.addEventListener('change', function () {
 
-            function apagarTodasLasCapas() {
-                const todosLosCheckboxes = document.querySelectorAll('#layers-panel input[type="checkbox"]');
-
-                todosLosCheckboxes.forEach(checkbox => {
-                    if (checkbox.checked) {
-                        checkbox.checked = false;
-                        checkbox.dispatchEvent(new Event('change'));
-                    }
-                });
-            }
-
-
-            if (btnSearchTrack) {
-                btnSearchTrack.addEventListener('click', apagarTodasLasCapas);
-            }
-
-
-            if (btnAdd) {
-                btnAdd.addEventListener('click', apagarTodasLasCapas);
+                        if (!this.checked) {
+                            trackCheck.checked = false;
+                            trackCheck.disabled = true;
+                            trackCheck.dispatchEvent(new Event('change'));
+                        } else {
+                            trackCheck.disabled = false;
+                            trackCheck.checked = true;
+                            trackCheck.dispatchEvent(new Event('change'));
+                        }
+                    });
+                }
             }
         });
-    </script>
-    <script>
-        function crearGrupoToggle(imagenId, arrayDeCheckboxesIds) {
-            const imgToggle = document.getElementById(imagenId);
-            if (!imgToggle) return;
-
-            let grupoVisible = true;
-
-            imgToggle.addEventListener('click', () => {
-                grupoVisible = !grupoVisible;
-                if (grupoVisible) {
-                    imgToggle.src = 'img/eye-solid-full.svg';
-                    imgToggle.style.opacity = '1';
-                } else {
-
-                    imgToggle.src = 'img/eye-slash-solid-full.svg';
-                    imgToggle.style.opacity = '0.5';
-                }
-
-                arrayDeCheckboxesIds.forEach(id => {
-                    const checkbox = document.getElementById(id);
-                    if (checkbox && checkbox.checked !== grupoVisible) {
-                        checkbox.checked = grupoVisible;
-                        checkbox.dispatchEvent(new Event('change'));
-                    }
-                });
-            });
-        }
-
-        crearGrupoToggle('toggle-stations', ['WCP', 'DRE', 'CTD', 'COR']);
-        crearGrupoToggle('toggle-cruises', ['sdgcruises', 'odbcruises', 'gdccruises', 'hescruises']);
-        crearGrupoToggle('toggle-tracks', ['sdgtracks', 'odbtracks', 'gdctracks', 'hestracks']);
     </script>
     <script src="js/grid.js"></script>
     <script src="js/download.js"></script>
@@ -562,6 +642,7 @@
     <script src="js/search.js"></script>
     <script src="js/add.js"></script>
     <script type="module" src="js/fleet.js"></script>
+    <script src="js/measure.js"></script>
 </body>
 
 </html>

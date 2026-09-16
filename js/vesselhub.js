@@ -1,24 +1,28 @@
 function openTab(evt, tabName) {
-    // Declarar variables
+
+    const panelPadre = evt.currentTarget.closest('div[id$="-panel"]');
+    
+    if (!panelPadre) return; 
+
     let i, tabcontent, tablinks;
 
-    // Obtener todos los elementos con class="tab-content" y ocultarlos
-    tabcontent = document.getElementsByClassName("tab-content");
+    
+    tabcontent = panelPadre.getElementsByClassName("tab-content");
     for (i = 0; i < tabcontent.length; i++) {
         tabcontent[i].style.display = "none";
     }
 
-    // Obtener todos los elementos con class="tab-link" y quitar la clase "active"
-    tablinks = document.getElementsByClassName("tab-link");
+   
+    tablinks = panelPadre.getElementsByClassName("tab-link");
     for (i = 0; i < tablinks.length; i++) {
         tablinks[i].className = tablinks[i].className.replace(" active", "");
     }
 
-    // Mostrar la pestaña actual y añadir "active" al botón que la abrió
+    
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.className += " active";
 }
-const PANEL_IDS = ['#tool-panel', '#layers-panel', '#search-panel', '#add-panel', '#captura-panel', '#malla-panel', '#wind-panel'];
+const PANEL_IDS = ['#tool-panel', '#layers-panel', '#search-panel', '#add-panel', '#captura-panel', '#malla-panel', '#measure-panel', '#wind-panel'];
 
 function togglePanel(panelId) {
     PANEL_IDS.filter(id => id !== panelId).forEach(id => $(id).hide());
@@ -39,5 +43,86 @@ $('#captura-btn').on('click', () => {
         descargarMapa(MAPA);
     } else {
         console.error("La instancia del mapa 'MAPA' no está definida.");
+    }
+});
+
+
+document.querySelectorAll(".collapsible").forEach(title => {
+
+    title.addEventListener("click", () => {
+
+        title.classList.toggle("open");
+
+        const content = title.nextElementSibling;
+        content.classList.toggle("collapsed");
+
+        const arrow = title.querySelector(".arrow");
+
+        if (content.classList.contains("collapsed")) {
+            arrow.src = "img/caret-right-solid-full.svg";
+        } else {
+            arrow.src = "img/caret-down-solid-full.svg";
+        }
+
+    });
+
+});
+function crearGrupoToggle(imagenId, arrayDeCheckboxesIds) {
+        const imgToggle = document.getElementById(imagenId);
+        if (!imgToggle) return;
+
+        let grupoVisible = true;
+
+        imgToggle.addEventListener('click', () => {
+            grupoVisible = !grupoVisible;
+            if (grupoVisible) {
+                imgToggle.src = 'img/eye-solid-full.svg';
+                imgToggle.style.opacity = '1';
+            } else {
+
+                imgToggle.src = 'img/eye-slash-solid-full.svg';
+                imgToggle.style.opacity = '0.5';
+            }
+
+            arrayDeCheckboxesIds.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox && checkbox.checked !== grupoVisible) {
+                    checkbox.checked = grupoVisible;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+    }
+
+crearGrupoToggle('toggle-stations', ['WCP', 'DRE', 'CTD', 'COR','NET', 'MOC', 'OBS', 'ROV','SEI']);
+crearGrupoToggle('toggle-cruises', ['sdgcruises', 'odbcruises', 'gdccruises', 'hescruises']);
+crearGrupoToggle('toggle-tracks', ['sdgtracks', 'odbtracks', 'gdctracks', 'hestracks']);
+
+document.addEventListener('DOMContentLoaded', () => {
+
+
+    const btnSearchTrack = document.getElementById('searchTrack');
+    const btnAdd = document.getElementById('btnAdd');
+
+
+    function apagarTodasLasCapas() {
+        const todosLosCheckboxes = document.querySelectorAll('#layers-panel input[type="checkbox"]');
+
+        todosLosCheckboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                checkbox.checked = false;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+
+    if (btnSearchTrack) {
+        btnSearchTrack.addEventListener('click', apagarTodasLasCapas);
+    }
+
+
+    if (btnAdd) {
+        btnAdd.addEventListener('click', apagarTodasLasCapas);
     }
 });
